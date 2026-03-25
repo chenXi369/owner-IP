@@ -1,0 +1,27 @@
+{
+  "name": "threejs-resume",
+  "version": "1.0.0",
+  "description": "个人IP简历网站 - Three.js 3D视觉效果",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^3.13.0",
+    "vue": "^3.4.0",
+    "three": "^0.168.0",
+    "gsap": "^3.12.5",
+    "@vueuse/core": "^11.0.0",
+    "@vueuse/nuxt": "^11.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "sass": "^1.77.0",
+    "sass-loader": "^16.0.0"
+  }
+}

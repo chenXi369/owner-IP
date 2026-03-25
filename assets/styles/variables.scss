@@ -1,0 +1,65 @@
+$primary-color: #6366f1;
+$secondary-color: #8b5cf6;
+$accent-color: #06b6d4;
+$dark-bg: #0a0a0f;
+$darker-bg: #050508;
+$text-primary: #f8fafc;
+$text-secondary: #94a3b8;
+$text-muted: #64748b;
+
+$gradient-primary: linear-gradient(135deg, $primary-color 0%, $secondary-color 100%);
+$gradient-accent: linear-gradient(135deg, $accent-color 0%, $primary-color 100%);
+$gradient-dark: linear-gradient(180deg, $darker-bg 0%, $dark-bg 100%);
+
+$font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+$font-mono: 'JetBrains Mono', monospace;
+
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-2xl: 1536px;
+
+$transition-fast: 0.15s ease;
+$transition-normal: 0.3s ease;
+$transition-slow: 0.5s ease;
+
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+$shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+$shadow-glow: 0 0 30px rgba($primary-color, 0.3);
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin glass-effect {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@mixin text-gradient {
+  background: $gradient-primary;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@mixin hover-lift {
+  transition: transform $transition-normal, box-shadow $transition-normal;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+@mixin responsive($breakpoint) {
+  @media (min-width: $breakpoint) {
+    @content;
+  }
+}

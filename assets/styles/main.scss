@@ -1,0 +1,179 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  
+  @include responsive($breakpoint-xl) {
+    font-size: 18px;
+  }
+}
+
+body {
+  font-family: $font-primary;
+  background: $gradient-dark;
+  color: $text-primary;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba($primary-color, 0.3);
+  color: $text-primary;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $darker-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $primary-color;
+  border-radius: 4px;
+  
+  &:hover {
+    background: $secondary-color;
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  
+  @include responsive($breakpoint-lg) {
+    padding: 0 2rem;
+  }
+}
+
+.section {
+  padding: 5rem 0;
+  
+  @include responsive($breakpoint-md) {
+    padding: 6rem 0;
+  }
+  
+  @include responsive($breakpoint-lg) {
+    padding: 8rem 0;
+  }
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  @include text-gradient;
+  
+  @include responsive($breakpoint-md) {
+    font-size: 3rem;
+  }
+}
+
+.section-subtitle {
+  font-size: 1.125rem;
+  color: $text-secondary;
+  margin-bottom: 3rem;
+}
+
+.glass-card {
+  @include glass-effect;
+  border-radius: 16px;
+  padding: 2rem;
+  @include hover-lift;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 1rem;
+  transition: all $transition-normal;
+  
+  &-primary {
+    background: $gradient-primary;
+    color: white;
+    box-shadow: $shadow-glow;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba($primary-color, 0.5);
+    }
+  }
+  
+  &-outline {
+    background: transparent;
+    border: 2px solid $primary-color;
+    color: $primary-color;
+    
+    &:hover {
+      background: rgba($primary-color, 0.1);
+      transform: translateY(-2px);
+    }
+  }
+}
+
+.text-gradient {
+  @include text-gradient;
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
