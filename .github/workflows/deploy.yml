@@ -50,6 +50,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         
+      - name: Debug - List files
+        run: ls -la
+        
+      - name: Debug - Show nuxt.config.js
+        run: cat nuxt.config.js
+        
       - name: Generate static site
         run: pnpm run generate
         
