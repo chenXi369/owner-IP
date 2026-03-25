@@ -15,6 +15,9 @@
 
 ```
 threejs简历/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml          # GitHub Actions部署配置
 ├── assets/
 │   └── styles/
 │       ├── main.scss          # 全局样式
@@ -33,10 +36,11 @@ threejs简历/
 │   └── useAnimation.js        # 动画相关组合式函数
 ├── pages/
 │   └── index.vue              # 主页面
+├── public/
+│   └── favicon.svg            # 网站图标
 ├── app.vue                    # 应用入口
 ├── nuxt.config.js             # Nuxt配置
 └── package.json               # 项目依赖
-
 ```
 
 ## 3D场景组件
@@ -107,6 +111,47 @@ npm run generate
 # 预览生产版本
 npm run preview
 ```
+
+## GitHub Pages 部署
+
+### 自动部署
+
+项目已配置GitHub Actions自动部署，推送到 `main` 分支时会自动构建并部署到GitHub Pages。
+
+### 手动部署步骤
+
+1. **修改仓库地址**
+   
+   编辑 `nuxt.config.js` 中的 `baseURL`，将 `/threejs简历/` 改为你的仓库名：
+   ```js
+   app: {
+     baseURL: process.env.NODE_ENV === 'production' ? '/你的仓库名/' : '/',
+   }
+   ```
+
+2. **启用GitHub Pages**
+   
+   - 进入仓库 Settings → Pages
+   - Source 选择 "GitHub Actions"
+
+3. **推送代码**
+   
+   ```bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
+
+4. **等待部署完成**
+   
+   在 Actions 标签页查看部署进度，完成后访问：
+   `https://你的用户名.github.io/你的仓库名/`
+
+### 自定义域名（可选）
+
+1. 在 `static` 目录下创建 `CNAME` 文件
+2. 填入你的自定义域名
+3. 在域名服务商处配置DNS解析
 
 ## 浏览器支持
 

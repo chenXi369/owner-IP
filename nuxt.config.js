@@ -24,6 +24,8 @@ export default defineNuxtConfig({
   ],
   
   app: {
+    baseURL: process.env.NODE_ENV === 'production' ? '/threejs简历/' : '/',
+    buildAssetsDir: '/_nuxt/',
     head: {
       title: '个人简历 - 3D Interactive Resume',
       meta: [
@@ -39,6 +41,10 @@ export default defineNuxtConfig({
       ]
     },
     pageTransition: { name: 'page', mode: 'out-in' }
+  },
+  
+  nitro: {
+    preset: 'github-pages'
   },
   
   build: {
