@@ -14,8 +14,7 @@ export default defineNuxtConfig({
   ],
   
   app: {
-    baseURL: '/owner-IP/',
-    buildAssetsDir: '_nuxt/'
+    baseURL: '/owner-IP/'
   },
   
   nitro: {
