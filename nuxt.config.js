@@ -13,6 +13,11 @@ export default defineNuxtConfig({
     }
   ],
   
+  app: {
+    baseURL: '/owner-IP/',
+    buildAssetsDir: '_nuxt/'
+  },
+  
   nitro: {
     preset: 'github-pages'
   },

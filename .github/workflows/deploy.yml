@@ -36,17 +36,14 @@ jobs:
         with:
           version: 9
           
-      - name: Remove lock file
-        run: rm -f pnpm-lock.yaml
-        
       - name: Install dependencies
         run: pnpm install
         
       - name: Generate static site
         run: pnpm run generate
         
-      - name: Add .nojekyll
-        run: touch .output/public/.nojekyll
+      - name: List output files
+        run: ls -la .output/public
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
