@@ -1,64 +1,86 @@
+# 工作流名称：部署到 GitHub Pages
 name: Deploy to GitHub Pages
 
+# 触发条件配置
 on:
+  # 当推送到 main 分支时触发
   push:
     branches:
       - main
+  # 允许手动触发工作流（在 GitHub Actions 页面可以手动运行）
   workflow_dispatch:
 
+# 权限配置
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: read    # 读取仓库内容的权限
+  pages: write      # 写入 GitHub Pages 的权限
+  id-token: write   # 用于 OIDC 身份验证的权限
 
+# 并发控制：确保同一时间只有一个部署任务在运行
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages              # 并发组名称
+  cancel-in-progress: true  # 如果有新的部署任务，取消正在进行的旧任务
 
+# 环境变量配置
 env:
+  # 强制 JavaScript Actions 使用 Node.js 24
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Nuxt 应用的基础 URL（需要根据你的 GitHub 用户名和仓库名修改）
   NUXT_APP_BASE_URL: '/owner-IP/'
 
+# 任务定义
 jobs:
+  # 构建任务：生成静态网站文件
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 使用最新的 Ubuntu 运行环境
     
     steps:
+      # 步骤1：检出代码
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # 使用官方的 checkout action 拉取代码
         
+      # 步骤2：设置 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20'  # 使用 Node.js 20 版本
           
+      # 步骤3：安装 pnpm 包管理器
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9  # 使用 pnpm 9 版本
           
+      # 步骤4：安装项目依赖
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile  # 安装依赖，允许更新 lockfile
         
+      # 步骤5：生成静态网站
       - name: Generate static site
-        run: pnpm run generate
+        run: pnpm run generate  # 执行 Nuxt 的静态生成命令
         
+      # 步骤6：查看生成的文件（用于调试）
       - name: List output files
-        run: ls -la .output/public
+        run: ls -la .output/public  # 列出生成的静态文件
         
+      # 步骤7：上传构建产物
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .output/public
+          path: .output/public  # 指定要上传的静态文件目录
 
+  # 部署任务：将构建产物部署到 GitHub Pages
   deploy:
+    # 环境配置
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
+      name: github-pages  # 环境名称
+      url: ${{ steps.deployment.outputs.page_url }}  # 部署完成后的网站 URL
+    
+    runs-on: ubuntu-latest  # 使用最新的 Ubuntu 运行环境
+    needs: build  # 依赖 build 任务，必须等 build 完成后才能执行
     
     steps:
+      # 步骤1：部署到 GitHub Pages
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        id: deployment  # 步骤 ID，用于获取输出（如部署 URL）
+        uses: actions/deploy-pages@v4  # 使用官方的 deploy-pages action 进行部署

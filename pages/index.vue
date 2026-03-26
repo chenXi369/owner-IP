@@ -477,8 +477,24 @@ onMounted(() => {
   position: relative;
 }
 
+.section {
+  padding: 60px 0 40px;
+
+  @include responsive($breakpoint-md) {
+    padding: 80px 0 60px;
+  }
+
+  @include responsive($breakpoint-lg) {
+    padding: 100px 0 80px;
+  }
+}
+
 .section-header {
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+
+  @include responsive($breakpoint-md) {
+    margin-bottom: 2.5rem;
+  }
   
   &.centered {
     text-align: center;
@@ -497,7 +513,18 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding-top: 80px;
+  padding-top: 100px;
+  padding-bottom: 20px;
+
+  @include responsive($breakpoint-md) {
+    padding-top: 70px;
+    padding-bottom: 30px;
+  }
+
+  @include responsive($breakpoint-lg) {
+    padding-top: 80px;
+    padding-bottom: 40px;
+  }
 }
 
 .hero-content {
@@ -612,10 +639,11 @@ onMounted(() => {
 .about-content {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 3rem;
-  
+  gap: 2rem;
+
   @include responsive($breakpoint-lg) {
     grid-template-columns: 1.5fr 1fr;
+    gap: 2.5rem;
   }
 }
 
@@ -637,11 +665,12 @@ onMounted(() => {
 .about-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-  margin-top: 2rem;
-  
+  gap: 1rem;
+  margin-top: 1.5rem;
+
   @include responsive($breakpoint-md) {
     grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
   }
   
   .stat-item {
@@ -694,11 +723,13 @@ onMounted(() => {
 .skills-content {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 3rem;
-  margin-bottom: 4rem;
-  
+  gap: 2rem;
+  margin-bottom: 2.5rem;
+
   @include responsive($breakpoint-lg) {
     grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    margin-bottom: 3rem;
   }
 }
 
@@ -795,10 +826,11 @@ onMounted(() => {
 .projects-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
-  
+  gap: 1.5rem;
+
   @include responsive($breakpoint-md) {
     grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
   }
 }
 
@@ -927,7 +959,11 @@ onMounted(() => {
 
 .timeline-item {
   position: relative;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
   
   .timeline-marker {
     position: absolute;
@@ -1013,13 +1049,21 @@ onMounted(() => {
 }
 
 .education-section {
-  margin-top: 4rem;
-  
+  margin-top: 3rem;
+
+  @include responsive($breakpoint-md) {
+    margin-top: 4rem;
+  }
+
   .subsection-title {
     font-size: 1.5rem;
     font-weight: 600;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     color: $text-primary;
+
+    @include responsive($breakpoint-md) {
+      margin-bottom: 2rem;
+    }
   }
 }
 
@@ -1066,17 +1110,22 @@ onMounted(() => {
 .contact-content {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 3rem;
-  
+  gap: 2rem;
+
   @include responsive($breakpoint-lg) {
     grid-template-columns: 1fr 1.5fr;
+    gap: 2.5rem;
   }
 }
 
 .contact-info {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
+
+  @include responsive($breakpoint-md) {
+    gap: 1.25rem;
+  }
 }
 
 .contact-item {

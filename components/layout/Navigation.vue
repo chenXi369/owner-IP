@@ -92,6 +92,14 @@ onUnmounted(() => {
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     padding: 0.75rem 0;
   }
+  
+  @media (max-width: 400px) {
+    padding: 0.75rem 0;
+    
+    &.scrolled {
+      padding: 0.625rem 0;
+    }
+  }
 }
 
 .nav-container {
@@ -99,12 +107,19 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  
+  @media (max-width: 400px) {
+    padding: 0 0.75rem;
+    gap: 0.5rem;
+  }
 }
 
 .nav-logo {
   font-size: 1.5rem;
   font-weight: 700;
   font-family: $font-mono;
+  flex-shrink: 0;
   
   .logo-text {
     color: $text-primary;
@@ -113,6 +128,10 @@ onUnmounted(() => {
   .logo-dot {
     color: $primary-color;
     animation: blink 1s infinite;
+  }
+  
+  @media (max-width: 400px) {
+    font-size: 1.25rem;
   }
 }
 
@@ -127,9 +146,15 @@ onUnmounted(() => {
   height: 32px;
   background: transparent;
   position: relative;
+  flex-shrink: 0;
   
   @include responsive($breakpoint-md) {
     display: block;
+  }
+  
+  @media (max-width: 400px) {
+    width: 28px;
+    height: 28px;
   }
   
   .hamburger {
@@ -142,6 +167,10 @@ onUnmounted(() => {
     background: $text-primary;
     transition: all $transition-normal;
     
+    @media (max-width: 400px) {
+      width: 20px;
+    }
+    
     &::before,
     &::after {
       content: '';
@@ -150,6 +179,10 @@ onUnmounted(() => {
       height: 2px;
       background: $text-primary;
       transition: all $transition-normal;
+      
+      @media (max-width: 400px) {
+        width: 20px;
+      }
     }
     
     &::before {
@@ -190,17 +223,44 @@ onUnmounted(() => {
     background: rgba(10, 10, 15, 0.98);
     backdrop-filter: blur(20px);
     flex-direction: column;
-    padding: 2rem;
-    gap: 1rem;
+    padding: 1.5rem 2rem;
+    gap: 0.75rem;
     transform: translateY(-100%);
     opacity: 0;
     visibility: hidden;
     transition: all $transition-normal;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
     
     .mobile-open & {
       transform: translateY(0);
       opacity: 1;
       visibility: visible;
+    }
+    
+    // 移动端横向菜单方案
+    @media (max-width: 400px) {
+      flex-direction: row;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      justify-content: flex-start;
+      padding: 1rem;
+      gap: 0.5rem;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth;
+      
+      // 隐藏滚动条但保留功能
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+      
+      li {
+        flex-shrink: 0;
+      }
     }
   }
 }
@@ -214,6 +274,7 @@ onUnmounted(() => {
   font-weight: 500;
   transition: color $transition-fast;
   position: relative;
+  white-space: nowrap;
   
   &::after {
     content: '';
@@ -240,6 +301,34 @@ onUnmounted(() => {
     font-family: $font-mono;
     font-size: 0.75rem;
   }
+  
+  .link-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    
+    @include responsive($breakpoint-md) {
+      max-width: none;
+      overflow: visible;
+    }
+    
+    @media (max-width: 400px) {
+      max-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+  
+  @media (max-width: 400px) {
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    
+    &.active {
+      background: rgba($primary-color, 0.1);
+    }
+  }
 }
 
 .nav-cta {
@@ -250,6 +339,7 @@ onUnmounted(() => {
   font-size: 0.875rem;
   font-weight: 500;
   transition: all $transition-normal;
+  white-space: nowrap;
   
   &:hover {
     background: $primary-color;
@@ -259,6 +349,11 @@ onUnmounted(() => {
   
   @include responsive($breakpoint-md) {
     display: none;
+  }
+  
+  @media (max-width: 400px) {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
   }
 }
 </style>
