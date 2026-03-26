@@ -95,7 +95,7 @@ onUnmounted(() => {
 }
 
 .nav-container {
-  @extend .container;
+  @include container;
   display: flex;
   align-items: center;
   justify-content: space-between;

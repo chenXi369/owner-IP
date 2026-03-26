@@ -73,7 +73,7 @@ const currentYear = new Date().getFullYear()
 }
 
 .footer-container {
-  @extend .container;
+  @include container;
 }
 
 .footer-content {

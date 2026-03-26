@@ -90,10 +90,10 @@ const createParticleAvatar = () => {
 }
 
 const handleResize = () => {
-  if (!canvasRef.value || !camera || !renderer) return
+  if (!containerRef.value || !camera || !renderer) return
   
-  const width = canvasRef.value.clientWidth
-  const height = canvasRef.value.clientHeight
+  const width = containerRef.value.clientWidth || 400
+  const height = containerRef.value.clientHeight || 500
   
   camera.aspect = width / height
   camera.updateProjectionMatrix()
@@ -108,11 +108,15 @@ const handleMouseMove = (e) => {
 const init = () => {
   if (!canvasRef.value || !process.client) return
 
+  const container = containerRef.value
+  const width = container.clientWidth || 400
+  const height = container.clientHeight || 500
+
   scene = new THREE.Scene()
   
   camera = new THREE.PerspectiveCamera(
     50,
-    canvasRef.value.clientWidth / canvasRef.value.clientHeight,
+    width / height,
     0.1,
     100
   )
@@ -124,7 +128,7 @@ const init = () => {
     alpha: true,
     powerPreference: 'high-performance'
   })
-  renderer.setSize(canvasRef.value.clientWidth, canvasRef.value.clientHeight)
+  renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
   particles = createParticleAvatar()

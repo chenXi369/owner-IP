@@ -63,3 +63,14 @@ $shadow-glow: 0 0 30px rgba($primary-color, 0.3);
     @content;
   }
 }
+
+@mixin container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  
+  @include responsive($breakpoint-lg) {
+    padding: 0 2rem;
+  }
+}

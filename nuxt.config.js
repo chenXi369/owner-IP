@@ -4,11 +4,14 @@ export default defineNuxtConfig({
   
   devtools: { enabled: true },
   
-  devServer: {
-    port: 3001
-  },
-  
   css: ['~/assets/styles/main.scss'],
+  
+  components: [
+    {
+      path: '~/components',
+      pathPrefix: false
+    }
+  ],
   
   nitro: {
     preset: 'github-pages'
