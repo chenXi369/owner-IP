@@ -17,6 +17,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NUXT_APP_BASE_URL: '/owner-IP/'
 
 jobs:
   build:
