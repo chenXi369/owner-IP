@@ -11,14 +11,18 @@ export const useFullResume = () => {
   const loading = ref(true)
   const error = ref(null)
   
-  const fetchFullResume = async () => {
+  const fetchFullResume = async (userId = null) => {
     try {
       loading.value = true
       error.value = null
       
       // 使用 $fetch 手动获取数据（可在异步函数中使用）
       const apiBase = useRuntimeConfig().public.apiBase || 'http://localhost:8000'
-      const data = await $fetch(`${apiBase}/api/resumes/active`)
+      let url = `${apiBase}/api/resumes/active`
+      if (userId) {
+        url += `?user_id=${userId}`
+      }
+      const data = await $fetch(url)
       
       if (data) {
         resume.value = data.resume

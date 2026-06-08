@@ -4,7 +4,12 @@
       <template #header>
         <div class="card-header">
           <span>工作经历</span>
-          <el-button type="primary" @click="handleAdd">新增经历</el-button>
+          <div class="header-right">
+            <el-select v-model="selectedResumeId" placeholder="选择简历" @change="loadExperiences" style="width: 200px; margin-right: 12px;">
+              <el-option v-for="resume in resumes" :key="resume.id" :label="resume.name" :value="resume.id" />
+            </el-select>
+            <el-button type="primary" @click="handleAdd">新增经历</el-button>
+          </div>
         </div>
       </template>
       
@@ -66,8 +71,8 @@
         <el-form-item label="排序">
           <el-input-number v-model="form.order" :min="0" />
         </el-form-item>
-        <el-form-item label="简历ID" prop="resume_id">
-          <el-input-number v-model="form.resume_id" :min="1" />
+        <el-form-item prop="resume_id" v-show="false">
+          <el-input v-model.number="form.resume_id" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -82,10 +87,13 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
-import { getAllExperiences, createExperience, updateExperience, deleteExperience } from '../api/experiences'
+import { getExperiencesByResume, createExperience, updateExperience, deleteExperience } from '../api/experiences'
+import { getResumes } from '../api/resume'
 
 const loading = ref(false)
 const experiences = ref([])
+const resumes = ref([])
+const selectedResumeId = ref(null)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
@@ -106,13 +114,30 @@ const rules = {
   resume_id: [{ required: true, message: '请输入简历ID', trigger: 'blur' }]
 }
 
-const loadData = async () => {
+const loadResumes = async () => {
   loading.value = true
   try {
-    const data = await getAllExperiences()
+    const data = await getResumes()
+    resumes.value = data || []
+    if (resumes.value.length > 0 && !selectedResumeId.value) {
+      selectedResumeId.value = resumes.value[0].id
+      await loadExperiences()
+    }
+  } catch (error) {
+    console.error('加载简历列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadExperiences = async () => {
+  if (!selectedResumeId.value) return
+  loading.value = true
+  try {
+    const data = await getExperiencesByResume(selectedResumeId.value)
     experiences.value = data || []
   } catch (error) {
-    console.error('加载失败:', error)
+    console.error('加载工作经历失败:', error)
   } finally {
     loading.value = false
   }
@@ -128,7 +153,7 @@ const handleAdd = () => {
     details: [''],
     tech_stack: [],
     order: 0,
-    resume_id: 1
+    resume_id: selectedResumeId.value
   }
   dialogVisible.value = true
 }
@@ -170,7 +195,7 @@ const handleSubmit = async () => {
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
-    loadData()
+    loadExperiences()
   } catch (error) {
     console.error('操作失败:', error)
   }
@@ -181,14 +206,14 @@ const handleDelete = async (row) => {
     await ElMessageBox.confirm('确定删除该工作经历吗？', '提示', { type: 'warning' })
     await deleteExperience(row.id)
     ElMessage.success('删除成功')
-    loadData()
+    loadExperiences()
   } catch {
     // 取消删除
   }
 }
 
 onMounted(() => {
-  loadData()
+  loadResumes()
 })
 </script>
 
@@ -196,7 +221,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .experiences-page {
-  padding: 24px;
 
   :deep(.el-card) {
     background-color: $bg-card;
@@ -214,6 +238,11 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+
+    .header-right {
+      display: flex;
+      align-items: center;
+    }
 
     span {
       font-size: 18px;

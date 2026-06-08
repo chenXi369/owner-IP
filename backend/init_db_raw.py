@@ -21,11 +21,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS resumes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name VARCHAR(100) NOT NULL,
+            slug VARCHAR(100) UNIQUE,
             title VARCHAR(200) NOT NULL,
             greeting VARCHAR(200) DEFAULT '你好,我是',
             description TEXT NOT NULL,
             avatar_url VARCHAR(500),
             is_active BOOLEAN DEFAULT 1,
+            user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -118,6 +120,20 @@ def init_db():
             is_active BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            about_text TEXT,
+            photo_url VARCHAR(500),
+            years_exp VARCHAR(20),
+            projects_count VARCHAR(20),
+            articles_count VARCHAR(20),
+            contributions_count VARCHAR(20),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         );
     """)
     conn.commit()

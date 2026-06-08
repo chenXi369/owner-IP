@@ -65,45 +65,31 @@
         <div class="about-content">
           <div class="about-text">
             <div class="about-card glass-card">
-              <p>
-                我是一名拥有 <strong>5年+</strong> 经验的全栈开发工程师，专注于前端技术和3D可视化领域。
-                我热爱将创意与技术结合，打造令人惊叹的用户体验。
+              <p v-for="(paragraph, index) in aboutParagraphs" :key="index">
+                {{ paragraph }}
               </p>
-              <p>
-                在我的职业生涯中，我参与了多个大型项目的开发，包括电商平台、数据可视化系统、
-                以及多个创意交互网站。我擅长使用 Vue.js、React、Three.js 等技术栈，
-                并持续探索 WebGL、WebXR 等前沿技术。
-              </p>
-              <p>
-                除了编程，我还热衷于分享知识，在技术社区发表过多篇文章，
-                并在多个技术大会上进行过演讲。我相信技术可以改变世界，
-                而我正在为此贡献自己的力量。
+              <p v-if="aboutParagraphs.length === 0">
+                暂无个人简介，请前往管理后台编辑。
               </p>
             </div>
-            
+
             <div class="about-stats">
-              <div class="stat-item">
-                <span class="stat-number">5+</span>
-                <span class="stat-label">年开发经验</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">50+</span>
-                <span class="stat-label">完成项目</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">20+</span>
-                <span class="stat-label">技术文章</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">10+</span>
-                <span class="stat-label">开源贡献</span>
+              <div v-for="stat in stats" :key="stat.label" class="stat-item">
+                <span class="stat-number">{{ stat.number }}</span>
+                <span class="stat-label">{{ stat.label }}</span>
               </div>
             </div>
           </div>
-          
+
           <div class="about-image">
             <div class="image-frame">
-              <div class="image-placeholder">
+              <img
+                v-if="profile?.photo_url"
+                :src="profile.photo_url"
+                alt="个人照片"
+                class="about-photo"
+              />
+              <div v-else class="image-placeholder">
                 <span>照片占位</span>
               </div>
             </div>
@@ -327,7 +313,7 @@
         </div>
       </section>
 
-      <Footer />
+      <Footer :contacts="contacts" />
     </template>
   </div>
 </template>
@@ -337,7 +323,15 @@ import { ref, onMounted, computed } from 'vue'
 import gsap from 'gsap'
 import { useTypewriter } from '~/composables/useAnimation'
 import { useFullResume } from '~/composables/useFullResume'
+import { useProfile } from '~/composables/useProfile'
 import { useMessageApi } from '~/composables/useApi'
+
+const props = defineProps({
+  userId: {
+    type: String,
+    default: null
+  }
+})
 
 const activeSkillIndex = ref(0)
 
@@ -353,6 +347,14 @@ const {
   error,
   fetchFullResume
 } = useFullResume()
+
+// 使用组合式函数获取个人信息
+const {
+  profile,
+  aboutParagraphs,
+  stats,
+  fetchProfile
+} = useProfile()
 
 // 获取消息 API
 const { submitMessage } = useMessageApi()
@@ -435,9 +437,12 @@ const handleSubmit = async () => {
 
 // 页面加载时获取数据
 onMounted(async () => {
-  // 获取简历数据
-  await fetchFullResume()
-  
+  // 获取简历数据（如有userId则传入，用于获取指定用户的激活简历）
+  await fetchFullResume(props.userId)
+
+  // 获取个人信息
+  await fetchProfile(props.userId)
+
   // 延迟启动打字机效果
   setTimeout(() => {
     type(titleText.value)
@@ -738,13 +743,20 @@ onMounted(async () => {
 
 .about-image {
   position: relative;
-  
+
   .image-frame {
     position: relative;
     z-index: 2;
     border-radius: 16px;
     overflow: hidden;
-    
+
+    .about-photo {
+      width: 100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      display: block;
+    }
+
     .image-placeholder {
       aspect-ratio: 3/4;
       background: linear-gradient(135deg, rgba($primary-color, 0.1), rgba($secondary-color, 0.1));

@@ -2,7 +2,7 @@
   <nav class="navigation" :class="{ 'scrolled': isScrolled, 'mobile-open': isMobileOpen }">
     <div class="nav-container">
       <div class="nav-logo">
-        <span class="logo-text">DEV</span>
+        <span class="logo-text">星辰简历</span>
         <span class="logo-dot">.</span>
       </div>
 

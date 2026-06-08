@@ -17,7 +17,32 @@
     </el-row>
 
     <el-row :gutter="20" class="mt-20">
-      <el-col :span="12">
+      <!-- 管理员：显示所有简历列表 -->
+      <el-col :span="12" v-if="isAdmin">
+        <el-card class="glass-card">
+          <template #header>
+            <span>简历列表</span>
+          </template>
+          <el-table :data="resumes" stripe style="width: 100%">
+            <el-table-column prop="name" label="姓名" width="120" />
+            <el-table-column prop="title" label="职位" min-width="140" />
+            <el-table-column prop="is_active" label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+                  {{ row.is_active ? '已激活' : '未激活' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160">
+              <template #default="{ row }">
+                {{ formatDate(row.created_at) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+      <!-- 普通用户：显示当前简历信息 -->
+      <el-col :span="12" v-else>
         <el-card title="简历信息" class="glass-card">
           <template #header>
             <span>简历信息</span>
@@ -38,7 +63,24 @@
       <el-col :span="12">
         <el-card class="glass-card">
           <template #header>
-            <span>技能分布</span>
+            <div class="card-header-with-select">
+              <span>技能分布</span>
+              <el-select
+                v-if="isAdmin"
+                v-model="selectedResumeId"
+                placeholder="选择简历"
+                size="small"
+                style="width: 160px"
+                @change="handleResumeChange"
+              >
+                <el-option
+                  v-for="r in resumes"
+                  :key="r.id"
+                  :label="r.name"
+                  :value="r.id"
+                />
+              </el-select>
+            </div>
           </template>
           <div v-if="skills.length > 0">
             <div v-for="skill in skills" :key="skill.id" class="skill-item">
@@ -51,7 +93,8 @@
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" class="mt-20">
+    <!-- 普通用户显示最新留言，管理员不显示 -->
+    <el-row :gutter="20" class="mt-20" v-if="!isAdmin">
       <el-col :span="24">
         <el-card class="glass-card">
           <template #header>
@@ -74,21 +117,43 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Document, Star, Folder, Message } from '@element-plus/icons-vue'
-import { getActiveResume } from '../api/resume'
+import { ref, onMounted, computed } from 'vue'
+import { Document, Star, Folder, Message, UserFilled } from '@element-plus/icons-vue'
+import { useUserStore } from '../stores/user'
+import { getActiveResume, getResumes } from '../api/resume'
+import { getAllSkills, getSkillStats } from '../api/skills'
+import { getAllProjects } from '../api/projects'
 import { getMessages } from '../api/messages'
+import { getUsers } from '../api/users'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.isAdmin)
 
 const resume = ref(null)
 const skills = ref([])
 const projects = ref([])
 const messages = ref([])
+const experiences = ref([])
+const educations = ref([])
+const contacts = ref([])
+const resumes = ref([])
+const users = ref([])
+const selectedResumeId = ref(null)
 
-const stats = ref([
-  { title: '技能数量', value: 0, icon: 'Star', color: '#E6A23C' },
-  { title: '项目数量', value: 0, icon: 'Folder', color: '#409EFF' },
-  { title: '工作经历', value: 0, icon: 'Document', color: '#67C23A' },
-  { title: '未读留言', value: 0, icon: 'Message', color: '#F56C6C' }
+const stats = ref([])
+
+const adminStats = computed(() => [
+  { title: '简历总数', value: resumes.value.length, icon: 'Document', color: '#6366f1' },
+  { title: '技能总数', value: skills.value.length, icon: 'Star', color: '#E6A23C' },
+  { title: '项目总数', value: projects.value.length, icon: 'Folder', color: '#409EFF' },
+  { title: '用户总数', value: users.value.length, icon: 'UserFilled', color: '#67C23A' }
+])
+
+const userStats = computed(() => [
+  { title: '技能数量', value: skills.value.length, icon: 'Star', color: '#E6A23C' },
+  { title: '项目数量', value: projects.value.length, icon: 'Folder', color: '#409EFF' },
+  { title: '工作经历', value: experiences.value.length, icon: 'Document', color: '#67C23A' },
+  { title: '未读留言', value: (messages.value || []).filter(m => !m.is_read).length, icon: 'Message', color: '#F56C6C' }
 ])
 
 const formatDate = (dateStr) => {
@@ -96,22 +161,48 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+const loadSkillStats = async (resumeId) => {
+  try {
+    const data = await getSkillStats(resumeId)
+    skills.value = data || []
+  } catch (error) {
+    console.error('加载技能统计失败:', error)
+  }
+}
+
+const handleResumeChange = (resumeId) => {
+  selectedResumeId.value = resumeId
+  loadSkillStats(resumeId)
+}
+
 const loadData = async () => {
   try {
-    const resumeData = await getActiveResume()
-    if (resumeData) {
-      resume.value = resumeData.resume
-      skills.value = resumeData.skills || []
-      projects.value = resumeData.projects || []
-      
-      stats.value[0].value = skills.value.length
-      stats.value[1].value = projects.value.length
-      stats.value[2].value = (resumeData.experiences || []).length
+    if (isAdmin.value) {
+      const [resumeData, skillData, projectData, userData] = await Promise.all([
+        getResumes(),
+        getAllSkills(),
+        getAllProjects(),
+        getUsers()
+      ])
+      resumes.value = resumeData || []
+      skills.value = skillData || []
+      projects.value = projectData || []
+      users.value = userData || []
+      stats.value = adminStats.value
+    } else {
+      const resumeData = await getActiveResume()
+      const msgData = await getMessages()
+      if (resumeData) {
+        resume.value = resumeData.resume
+        skills.value = resumeData.skills || []
+        projects.value = resumeData.projects || []
+        experiences.value = resumeData.experiences || []
+        educations.value = resumeData.educations || []
+        contacts.value = resumeData.contacts || []
+      }
+      messages.value = (msgData || []).slice(0, 5)
+      stats.value = userStats.value
     }
-
-    const msgData = await getMessages()
-    messages.value = (msgData || []).slice(0, 5)
-    stats.value[3].value = (msgData || []).filter(m => !m.is_read).length
   } catch (error) {
     console.error('加载数据失败:', error)
   }
@@ -191,6 +282,12 @@ onMounted(() => {
   width: 80px;
   font-size: 14px;
   color: $text-secondary;
+}
+
+.card-header-with-select {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 p {

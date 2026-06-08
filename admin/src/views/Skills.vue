@@ -10,19 +10,7 @@
       
       <el-table :data="skills" stripe v-loading="loading" style="width: 100%">
         <el-table-column type="index" width="60" />
-        <el-table-column prop="name" label="技能名称" min-width="120" />
-        <el-table-column prop="level" label="熟练度" min-width="200">
-          <template #default="{ row }">
-            <el-progress :percentage="row.level" :color="row.color" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="color" label="颜色" width="120">
-          <template #default="{ row }">
-            <el-color-picker v-model="row.color" disabled />
-          </template>
-        </el-table-column>
-        <el-table-column prop="category" label="分类" min-width="100" />
-        <el-table-column prop="order" label="排序" width="80" />
+        <el-table-column prop="name" label="技能名称" min-width="200" />
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
@@ -33,25 +21,10 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑技能' : '新增技能'" width="500px">
-      <el-form :model="form" label-width="100px" :rules="rules" ref="formRef">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑技能' : '新增技能'" width="400px">
+      <el-form :model="form" label-width="90px" :rules="rules" ref="formRef">
         <el-form-item label="技能名称" prop="name">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="熟练度" prop="level">
-          <el-slider v-model="form.level" :max="100" show-input />
-        </el-form-item>
-        <el-form-item label="颜色">
-          <el-color-picker v-model="form.color" />
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-input v-model="form.category" placeholder="如：前端、后端" />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.order" :min="0" />
-        </el-form-item>
-        <el-form-item label="简历ID" prop="resume_id">
-          <el-input-number v-model="form.resume_id" :min="1" />
+          <el-input v-model="form.name" placeholder="请输入技能名称" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -74,17 +47,11 @@ const isEdit = ref(false)
 const formRef = ref(null)
 const form = ref({
   id: null,
-  name: '',
-  level: 80,
-  color: '#42b883',
-  category: '',
-  order: 0,
-  resume_id: 1
+  name: ''
 })
 
 const rules = {
-  name: [{ required: true, message: '请输入技能名称', trigger: 'blur' }],
-  resume_id: [{ required: true, message: '请输入简历ID', trigger: 'blur' }]
+  name: [{ required: true, message: '请输入技能名称', trigger: 'blur' }]
 }
 
 const loadData = async () => {
@@ -101,21 +68,13 @@ const loadData = async () => {
 
 const handleAdd = () => {
   isEdit.value = false
-  form.value = {
-    id: null,
-    name: '',
-    level: 80,
-    color: '#42b883',
-    category: '',
-    order: 0,
-    resume_id: 1
-  }
+  form.value = { id: null, name: '' }
   dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
   isEdit.value = true
-  form.value = { ...row, resume_id: row.resume_id || 1 }
+  form.value = { id: row.id, name: row.name }
   dialogVisible.value = true
 }
 
@@ -125,10 +84,10 @@ const handleSubmit = async () => {
 
   try {
     if (isEdit.value) {
-      await updateSkill(form.value.id, form.value)
+      await updateSkill(form.value.id, { name: form.value.name })
       ElMessage.success('更新成功')
     } else {
-      await createSkill(form.value)
+      await createSkill({ name: form.value.name })
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
@@ -158,8 +117,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .skills-page {
-  padding: 24px;
-
   :deep(.el-card) {
     background: $bg-card;
     border: 1px solid $border-color;

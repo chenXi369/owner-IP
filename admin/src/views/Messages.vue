@@ -96,7 +96,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .messages-page {
-  padding: 24px;
   min-height: 100vh;
   background: $bg-primary;
 

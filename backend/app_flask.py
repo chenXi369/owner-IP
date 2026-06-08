@@ -26,6 +26,45 @@ CORS(app, resources={
 })
 
 
+def migrate_db():
+    """数据库迁移：添加缺失的列和表"""
+    db = sqlite3.connect(DB_PATH)
+    cursor = db.cursor()
+    cursor.execute("PRAGMA table_info(resumes)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'slug' not in columns:
+        cursor.execute("ALTER TABLE resumes ADD COLUMN slug VARCHAR(100)")
+        db.commit()
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_slug ON resumes(slug)")
+        db.commit()
+    if 'user_id' not in columns:
+        cursor.execute("ALTER TABLE resumes ADD COLUMN user_id INTEGER")
+        db.commit()
+
+    # 创建 user_profiles 表（如果不存在）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            about_text TEXT,
+            photo_url VARCHAR(500),
+            years_exp VARCHAR(20),
+            projects_count VARCHAR(20),
+            articles_count VARCHAR(20),
+            contributions_count VARCHAR(20),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    db.commit()
+    db.close()
+
+
+# 启动时执行迁移
+migrate_db()
+
+
 def get_db():
     """获取数据库连接"""
     if 'db' not in g:
@@ -67,7 +106,11 @@ def row_to_dict(row):
     """将 sqlite3.Row 转换为字典"""
     if row is None:
         return None
-    return {key: row[key] for key in row.keys()}
+    result = {key: row[key] for key in row.keys()}
+    # 兼容前端字段名：将数据库的 order_num 映射为 order
+    if 'order_num' in result:
+        result['order'] = result.pop('order_num')
+    return result
 
 
 # ==================== API 路由 ====================
@@ -98,16 +141,33 @@ def get_resumes():
 @app.route('/api/resumes', methods=['POST'])
 def create_resume():
     """创建简历"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录或登录已过期'}), 401
+
     data = request.get_json()
     if not data or not data.get('name') or not data.get('title'):
         return jsonify({'error': '姓名和职位标题为必填项'}), 400
-    
+    if not data.get('slug'):
+        return jsonify({'error': '简历ID为必填项'}), 400
+
+    slug = data.get('slug')
+    # 检查 slug 唯一性
+    existing = query_db('SELECT id FROM resumes WHERE slug = ?', [slug], one=True)
+    if existing:
+        return jsonify({'error': '简历ID已存在，请使用其他ID'}), 400
+
+    is_active = 1 if data.get('is_active') else 0
+    if is_active:
+        # 确保同一用户只有一个激活简历
+        execute_db('UPDATE resumes SET is_active = 0 WHERE user_id = ?', [user['id']])
+
     resume_id = execute_db(
-        '''INSERT INTO resumes (name, title, greeting, description, avatar_url, is_active)
-           VALUES (?, ?, ?, ?, ?, ?)''',
-        [data.get('name'), data.get('title'), data.get('greeting', '你好,我是'),
+        '''INSERT INTO resumes (name, title, slug, greeting, description, avatar_url, is_active, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+        [data.get('name'), data.get('title'), slug, data.get('greeting', '你好,我是'),
          data.get('description', ''), data.get('avatar_url', ''),
-         1 if data.get('is_active') else 0]
+         is_active, user['id']]
     )
     return jsonify({'id': resume_id, 'message': '创建成功'}), 201
 
@@ -118,17 +178,29 @@ def update_resume(resume_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
-    
+
+    # 检查 slug 唯一性
+    if 'slug' in data and data['slug']:
+        existing = query_db('SELECT id FROM resumes WHERE slug = ? AND id != ?', [data['slug'], resume_id], one=True)
+        if existing:
+            return jsonify({'error': '简历ID已存在，请使用其他ID'}), 400
+
+    # 如果激活当前简历，先将该用户的其他简历设为未激活
+    if 'is_active' in data and data['is_active']:
+        resume = query_db('SELECT user_id FROM resumes WHERE id = ?', [resume_id], one=True)
+        if resume:
+            execute_db('UPDATE resumes SET is_active = 0 WHERE user_id = ? AND id != ?', [resume['user_id'], resume_id])
+
     fields = []
     values = []
-    for field in ['name', 'title', 'greeting', 'description', 'avatar_url', 'is_active']:
+    for field in ['name', 'title', 'slug', 'greeting', 'description', 'avatar_url', 'is_active']:
         if field in data:
             fields.append(f"{field} = ?")
-            values.append(1 if data[field] else 0 if field == 'is_active' else data[field])
-    
+            values.append((1 if data[field] else 0) if field == 'is_active' else data[field])
+
     if not fields:
         return jsonify({'error': '没有要更新的字段'}), 400
-    
+
     values.append(resume_id)
     execute_db(f"UPDATE resumes SET {', '.join(fields)} WHERE id = ?", values)
     return jsonify({'message': '更新成功'})
@@ -144,7 +216,13 @@ def delete_resume(resume_id):
 @app.route('/api/resumes/active')
 def get_active_resume():
     """获取激活的完整简历"""
-    resume = query_db('SELECT * FROM resumes WHERE is_active = 1 LIMIT 1', one=True)
+    user_id = request.args.get('user_id', type=int)
+    
+    if user_id:
+        resume = query_db('SELECT * FROM resumes WHERE is_active = 1 AND user_id = ? LIMIT 1', [user_id], one=True)
+    else:
+        resume = query_db('SELECT * FROM resumes WHERE is_active = 1 LIMIT 1', one=True)
+    
     if not resume:
         return jsonify({'error': '没有找到激活的简历'}), 404
     
@@ -222,6 +300,51 @@ def get_resume(resume_id):
     })
 
 
+@app.route('/api/public/resumes/<int:user_id>/<slug>')
+def get_public_resume(user_id, slug):
+    """公开访问：通过用户ID和简历slug获取简历详情"""
+    resume = query_db(
+        '''SELECT r.*, u.username, u.nickname FROM resumes r
+           JOIN users u ON r.user_id = u.id
+           WHERE u.id = ? AND r.slug = ? LIMIT 1''',
+        [user_id, slug], one=True)
+    if not resume:
+        return jsonify({'error': '简历不存在'}), 404
+
+    resume_dict = row_to_dict(resume)
+    resume_id = resume_dict['id']
+
+    skills = [row_to_dict(r) for r in query_db(
+        'SELECT * FROM skills WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+    projects = [row_to_dict(r) for r in query_db(
+        'SELECT * FROM projects WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+    experiences_raw = query_db(
+        'SELECT * FROM experiences WHERE resume_id = ? ORDER BY order_num', [resume_id])
+    educations = [row_to_dict(r) for r in query_db(
+        'SELECT * FROM educations WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+    contacts = [row_to_dict(r) for r in query_db(
+        'SELECT * FROM contacts WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+
+    experiences = []
+    for exp in experiences_raw:
+        exp_dict = row_to_dict(exp)
+        exp_dict['details'] = json.loads(exp_dict['details'] or '[]')
+        exp_dict['tech_stack'] = json.loads(exp_dict['tech_stack'] or '[]')
+        experiences.append(exp_dict)
+
+    for proj in projects:
+        proj['tech_stack'] = json.loads(proj['tech_stack'] or '[]')
+
+    return jsonify({
+        'resume': resume_dict,
+        'skills': skills,
+        'projects': projects,
+        'experiences': experiences,
+        'educations': educations,
+        'contacts': contacts
+    })
+
+
 # ==================== 技能 CRUD ====================
 
 @app.route('/api/skills', methods=['GET'])
@@ -283,6 +406,18 @@ def get_skills(resume_id):
     """获取简历技能"""
     skills = [row_to_dict(r) for r in query_db(
         'SELECT * FROM skills WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+    return jsonify(skills)
+
+
+@app.route('/api/stats/skills')
+def get_skill_stats():
+    """获取技能统计分布，支持按简历筛选"""
+    resume_id = request.args.get('resume_id', type=int)
+    if resume_id:
+        skills = [row_to_dict(r) for r in query_db(
+            'SELECT * FROM skills WHERE resume_id = ? ORDER BY order_num', [resume_id])]
+    else:
+        skills = [row_to_dict(r) for r in query_db('SELECT * FROM skills ORDER BY order_num')]
     return jsonify(skills)
 
 
@@ -584,6 +719,36 @@ def get_contacts(resume_id):
     return jsonify(contacts)
 
 
+@app.route('/api/my/contacts')
+def get_my_contacts():
+    """获取当前用户激活简历的联系方式"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录'}), 401
+    
+    resume = query_db('SELECT id FROM resumes WHERE user_id = ? AND is_active = 1 LIMIT 1', [user['id']], one=True)
+    if not resume:
+        return jsonify([])
+    
+    contacts = [row_to_dict(r) for r in query_db(
+        'SELECT * FROM contacts WHERE resume_id = ? ORDER BY order_num', [resume['id']])]
+    return jsonify(contacts)
+
+
+@app.route('/api/my/active-resume')
+def get_my_active_resume():
+    """获取当前用户的激活简历ID"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录'}), 401
+    
+    resume = query_db('SELECT id FROM resumes WHERE user_id = ? AND is_active = 1 LIMIT 1', [user['id']], one=True)
+    if not resume:
+        return jsonify({'error': '没有找到激活的简历'}), 404
+    
+    return jsonify({'id': resume['id']})
+
+
 @app.route('/api/messages', methods=['POST'])
 def create_message():
     """提交联系消息"""
@@ -818,6 +983,90 @@ def change_password():
     new_hash = generate_password_hash(new_password)
     execute_db('UPDATE users SET password_hash = ? WHERE id = ?', [new_hash, user['id']])
     return jsonify({'message': '密码修改成功'})
+
+
+# ==================== 个人信息中心 ====================
+
+@app.route('/api/profile', methods=['GET'])
+def get_profile():
+    """获取当前用户的个人信息"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录'}), 401
+    
+    profile = query_db('SELECT * FROM user_profiles WHERE user_id = ?', [user['id']], one=True)
+    if not profile:
+        return jsonify({
+            'user_id': user['id'],
+            'about_text': '',
+            'photo_url': '',
+            'years_exp': '0',
+            'projects_count': '0',
+            'articles_count': '0',
+            'contributions_count': '0'
+        })
+    
+    return jsonify(row_to_dict(profile))
+
+
+@app.route('/api/profile', methods=['PUT'])
+def update_profile():
+    """更新当前用户的个人信息"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录'}), 401
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': '请提供更新数据'}), 400
+    
+    # 检查是否已存在记录
+    existing = query_db('SELECT id FROM user_profiles WHERE user_id = ?', [user['id']], one=True)
+    
+    if existing:
+        # 更新
+        fields = []
+        values = []
+        field_map = {
+            'about_text': 'about_text',
+            'photo_url': 'photo_url',
+            'years_exp': 'years_exp',
+            'projects_count': 'projects_count',
+            'articles_count': 'articles_count',
+            'contributions_count': 'contributions_count'
+        }
+        
+        for key, db_field in field_map.items():
+            if key in data:
+                fields.append(f"{db_field} = ?")
+                values.append(data[key])
+        
+        if not fields:
+            return jsonify({'error': '没有要更新的字段'}), 400
+        
+        values.append(user['id'])
+        execute_db(f"UPDATE user_profiles SET {', '.join(fields)} WHERE user_id = ?", values)
+    else:
+        # 创建
+        execute_db(
+            '''INSERT INTO user_profiles (user_id, about_text, photo_url, years_exp, projects_count, articles_count, contributions_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            [user['id'], data.get('about_text', ''), data.get('photo_url', ''),
+             data.get('years_exp', '0'), data.get('projects_count', '0'),
+             data.get('articles_count', '0'), data.get('contributions_count', '0')]
+        )
+    
+    return jsonify({'message': '保存成功'})
+
+
+@app.route('/api/public/profile/<int:user_id>')
+def get_public_profile(user_id):
+    """公开访问：获取用户个人信息"""
+    profile = query_db('SELECT * FROM user_profiles WHERE user_id = ?', [user_id], one=True)
+    if not profile:
+        return jsonify({'error': '个人信息不存在'}), 404
+    
+    return jsonify(row_to_dict(profile))
 
 
 # ==================== 用户管理（管理员） ====================

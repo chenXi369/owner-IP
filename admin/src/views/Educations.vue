@@ -4,7 +4,17 @@
       <template #header>
         <div class="card-header">
           <span>教育背景</span>
-          <el-button type="primary" @click="handleAdd">新增教育背景</el-button>
+          <div class="header-actions">
+            <el-select v-model="selectedResumeId" placeholder="选择简历" @change="loadEducations">
+              <el-option
+                v-for="resume in resumes"
+                :key="resume.id"
+                :label="resume.name"
+                :value="resume.id"
+              />
+            </el-select>
+            <el-button type="primary" @click="handleAdd">新增教育背景</el-button>
+          </div>
         </div>
       </template>
       
@@ -42,8 +52,8 @@
         <el-form-item label="排序">
           <el-input-number v-model="form.order" :min="0" />
         </el-form-item>
-        <el-form-item label="简历ID" prop="resume_id">
-          <el-input-number v-model="form.resume_id" :min="1" />
+        <el-form-item prop="resume_id" v-show="false">
+          <el-input v-model="form.resume_id" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -57,10 +67,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getAllEducations, createEducation, updateEducation, deleteEducation } from '../api/educations'
+import { getResumes } from '../api/resume'
+import { getEducationsByResume, createEducation, updateEducation, deleteEducation } from '../api/educations'
 
 const loading = ref(false)
 const educations = ref([])
+const resumes = ref([])
+const selectedResumeId = ref(null)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
@@ -71,7 +84,7 @@ const form = ref({
   period: '',
   description: '',
   order: 0,
-  resume_id: 1
+  resume_id: null
 })
 
 const rules = {
@@ -80,13 +93,27 @@ const rules = {
   resume_id: [{ required: true, message: '请输入简历ID', trigger: 'blur' }]
 }
 
-const loadData = async () => {
+const loadResumes = async () => {
+  try {
+    const data = await getResumes()
+    resumes.value = data || []
+    if (resumes.value.length > 0 && !selectedResumeId.value) {
+      selectedResumeId.value = resumes.value[0].id
+      await loadEducations()
+    }
+  } catch (error) {
+    console.error('加载简历失败:', error)
+  }
+}
+
+const loadEducations = async () => {
+  if (!selectedResumeId.value) return
   loading.value = true
   try {
-    const data = await getAllEducations()
+    const data = await getEducationsByResume(selectedResumeId.value)
     educations.value = data || []
   } catch (error) {
-    console.error('加载失败:', error)
+    console.error('加载教育背景失败:', error)
   } finally {
     loading.value = false
   }
@@ -101,7 +128,7 @@ const handleAdd = () => {
     period: '',
     description: '',
     order: 0,
-    resume_id: 1
+    resume_id: selectedResumeId.value
   }
   dialogVisible.value = true
 }
@@ -125,7 +152,7 @@ const handleSubmit = async () => {
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
-    loadData()
+    loadEducations()
   } catch (error) {
     console.error('操作失败:', error)
   }
@@ -136,14 +163,14 @@ const handleDelete = async (row) => {
     await ElMessageBox.confirm('确定删除该教育背景吗？', '提示', { type: 'warning' })
     await deleteEducation(row.id)
     ElMessage.success('删除成功')
-    loadData()
+    loadEducations()
   } catch {
     // 取消删除
   }
 }
 
 onMounted(() => {
-  loadData()
+  loadResumes()
 })
 </script>
 
@@ -151,8 +178,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .educations-page {
-  padding: 24px;
-
   :deep(.el-card) {
     background-color: $bg-card;
     border: 1px solid $border-color;
@@ -174,6 +199,41 @@ onMounted(() => {
       font-size: 18px;
       font-weight: 600;
       color: $text-primary;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .el-select {
+        width: 200px;
+
+        .el-input__wrapper {
+          background-color: $bg-primary;
+          border: 1px solid $border-color;
+          box-shadow: none;
+          border-radius: $border-radius-sm;
+
+          &.is-focus {
+            border-color: $primary;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+          }
+        }
+
+        .el-input__inner {
+          color: $text-primary;
+          background-color: transparent;
+
+          &::placeholder {
+            color: $text-muted;
+          }
+        }
+
+        .el-input__suffix-inner {
+          color: $text-muted;
+        }
+      }
     }
 
     .el-button {

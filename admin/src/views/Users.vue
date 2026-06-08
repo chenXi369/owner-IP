@@ -128,7 +128,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .users-page {
-  padding: 24px;
   min-height: 100vh;
   background: $bg-primary;
 

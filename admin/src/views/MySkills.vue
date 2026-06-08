@@ -1,60 +1,68 @@
 <template>
-  <div class="resume-page">
-    <el-card class="glass-card">
+  <div class="my-skills-page">
+    <el-card>
       <template #header>
         <div class="card-header">
-          <span>简历列表</span>
-          <el-button type="primary" @click="handleAdd">新增简历</el-button>
+          <span>我的技能</span>
+          <div class="header-actions">
+            <el-select
+              v-model="selectedResumeId"
+              placeholder="选择简历"
+              style="width: 200px"
+              @change="loadSkills"
+            >
+              <el-option
+                v-for="resume in resumes"
+                :key="resume.id"
+                :label="resume.name"
+                :value="resume.id"
+              />
+            </el-select>
+            <el-button type="primary" @click="handleAdd">新增技能</el-button>
+          </div>
         </div>
       </template>
-      
-      <el-table :data="resumes" stripe v-loading="loading">
+
+      <el-table :data="skills" stripe v-loading="loading" style="width: 100%">
         <el-table-column type="index" width="60" />
-        <el-table-column prop="name" label="姓名" min-width="100" />
-        <el-table-column prop="slug" label="简历ID" min-width="120" />
-        <el-table-column prop="title" label="职位" min-width="150" />
-        <el-table-column prop="greeting" label="问候语" min-width="120" />
-        <el-table-column prop="description" label="简介" show-overflow-tooltip />
-        <el-table-column prop="is_active" label="状态" width="120" align="center">
+        <el-table-column prop="name" label="技能名称" min-width="120" />
+        <el-table-column prop="level" label="熟练度" min-width="200">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'">
-              {{ row.is_active ? '已激活' : '未激活' }}
-            </el-tag>
+            <el-progress :percentage="row.level" :color="row.color" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280">
+        <el-table-column prop="color" label="颜色" width="120">
           <template #default="{ row }">
-            <el-button v-if="row.is_active" type="success" link size="small" @click="handlePreview(row)">预览简历</el-button>
+            <el-color-picker v-model="row.color" disabled />
+          </template>
+        </el-table-column>
+        <el-table-column prop="category" label="分类" min-width="100" />
+        <el-table-column prop="order" label="排序" width="80" />
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑简历' : '新增简历'" width="600px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑技能' : '新增技能'" width="500px">
       <el-form :model="form" label-width="100px" :rules="rules" ref="formRef">
-        <el-form-item label="姓名" prop="name">
+        <el-form-item label="技能名称" prop="name">
           <el-input v-model="form.name" />
         </el-form-item>
-        <el-form-item label="简历ID" prop="slug">
-          <el-input v-model="form.slug" placeholder="唯一标识，如：my-resume-2024" :disabled="isEdit" />
+        <el-form-item label="熟练度" prop="level">
+          <el-slider v-model="form.level" :max="100" show-input />
         </el-form-item>
-        <el-form-item label="职位标题" prop="title">
-          <el-input v-model="form.title" />
+        <el-form-item label="颜色">
+          <el-color-picker v-model="form.color" />
         </el-form-item>
-        <el-form-item label="问候语">
-          <el-input v-model="form.greeting" />
+        <el-form-item label="分类">
+          <el-input v-model="form.category" placeholder="如：前端、后端" />
         </el-form-item>
-        <el-form-item label="个人简介">
-          <el-input v-model="form.description" type="textarea" :rows="4" />
-        </el-form-item>
-        <el-form-item label="头像URL">
-          <el-input v-model="form.avatar_url" />
-        </el-form-item>
-        <el-form-item label="激活状态">
-          <el-switch v-model="form.is_active" />
+        <el-form-item label="排序">
+          <el-input-number v-model="form.order" :min="0" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -67,51 +75,51 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { getResumes, createResume, updateResume, deleteResume } from '../api/resume'
+import { ElMessage } from 'element-plus'
+import { getSkillsByResume, createSkill, updateSkill } from '../api/skills'
+import { getResumes } from '../api/resume'
 
 const loading = ref(false)
+const skills = ref([])
 const resumes = ref([])
+const selectedResumeId = ref(null)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
 const form = ref({
   id: null,
   name: '',
-  slug: '',
-  title: '',
-  greeting: '你好,我是',
-  description: '',
-  avatar_url: '',
-  is_active: false
+  level: 80,
+  color: '#42b883',
+  category: '',
+  order: 0
 })
 
-const validateSlug = (rule, value, callback) => {
-  if (!value) {
-    callback(new Error('请输入简历ID'))
-  } else if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    callback(new Error('只能包含字母、数字、连字符和下划线'))
-  } else {
-    callback()
+const rules = {
+  name: [{ required: true, message: '请输入技能名称', trigger: 'blur' }]
+}
+
+const loadResumes = async () => {
+  try {
+    const data = await getResumes()
+    resumes.value = Array.isArray(data) ? data : (data?.data || [])
+    if (resumes.value.length > 0 && !selectedResumeId.value) {
+      selectedResumeId.value = resumes.value[0].id
+      await loadSkills()
+    }
+  } catch (error) {
+    console.error('加载简历列表失败:', error)
   }
 }
 
-const rules = {
-  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  slug: [
-    { required: true, message: '请输入简历ID', trigger: 'blur' },
-    { validator: validateSlug, trigger: 'blur' }
-  ],
-  title: [{ required: true, message: '请输入职位标题', trigger: 'blur' }]
-}
-
-const loadData = async () => {
+const loadSkills = async () => {
+  if (!selectedResumeId.value) return
   loading.value = true
   try {
-    const data = await getResumes()
-    resumes.value = data || []
+    const data = await getSkillsByResume(selectedResumeId.value)
+    skills.value = Array.isArray(data) ? data : (data?.data || [])
   } catch (error) {
-    console.error('加载失败:', error)
+    console.error('加载技能失败:', error)
   } finally {
     loading.value = false
   }
@@ -122,12 +130,10 @@ const handleAdd = () => {
   form.value = {
     id: null,
     name: '',
-    slug: '',
-    title: '',
-    greeting: '你好,我是',
-    description: '',
-    avatar_url: '',
-    is_active: false
+    level: 80,
+    color: '#42b883',
+    category: '',
+    order: 0
   }
   dialogVisible.value = true
 }
@@ -138,51 +144,34 @@ const handleEdit = (row) => {
   dialogVisible.value = true
 }
 
-const handlePreview = (row) => {
-  const nuxtBaseUrl = import.meta.env.VITE_NUXT_BASE_URL || 'http://localhost:3000'
-  const url = `${nuxtBaseUrl}/${row.user_id}/${row.slug}`
-  window.open(url, '_blank')
-}
-
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
   try {
     if (isEdit.value) {
-      await updateResume(form.value.id, form.value)
+      await updateSkill(form.value.id, form.value)
       ElMessage.success('更新成功')
     } else {
-      await createResume(form.value)
+      await createSkill({ ...form.value, resume_id: selectedResumeId.value })
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
-    loadData()
+    loadSkills()
   } catch (error) {
     console.error('操作失败:', error)
   }
 }
 
-const handleDelete = async (row) => {
-  try {
-    await ElMessageBox.confirm('确定删除该简历吗？', '提示', { type: 'warning' })
-    await deleteResume(row.id)
-    ElMessage.success('删除成功')
-    loadData()
-  } catch {
-    // 取消删除
-  }
-}
-
 onMounted(() => {
-  loadData()
+  loadResumes()
 })
 </script>
 
 <style scoped lang="scss">
 @use '../styles/variables.scss' as *;
 
-.resume-page {
+.my-skills-page {
   :deep(.el-card) {
     background: $bg-card;
     border: 1px solid $border-color;
@@ -209,6 +198,34 @@ onMounted(() => {
     font-size: 18px;
     font-weight: 600;
     color: $text-primary;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  :deep(.el-select) {
+    .el-input__wrapper {
+      background: $bg-primary;
+      border: 1px solid $border-color;
+      box-shadow: none;
+      border-radius: $border-radius-sm;
+
+      &.is-focus {
+        border-color: $primary;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      }
+    }
+
+    .el-input__inner {
+      color: $text-primary;
+    }
+
+    .el-select__caret {
+      color: $text-muted;
+    }
   }
 
   :deep(.el-table) {
@@ -338,10 +355,16 @@ onMounted(() => {
         background: $bg-primary;
       }
     }
+
+    .el-slider__runway {
+      background: $bg-hover;
+    }
   }
 
-  :deep(.el-switch__label) {
-    color: $text-secondary;
+  :deep(.el-color-picker) {
+    .el-color-picker__trigger {
+      border-color: $border-color;
+    }
   }
 
   :deep(.el-button.is-link) {
@@ -356,19 +379,6 @@ onMounted(() => {
         color: $primary;
       }
     }
-
-    &.el-button--danger {
-      color: #f87171;
-
-      &:hover {
-        color: mix(#fff, $danger, 25%);
-      }
-    }
-  }
-
-  :deep(.el-tag) {
-    border-radius: $border-radius-sm;
-    font-weight: 500;
   }
 }
 </style>

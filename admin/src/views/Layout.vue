@@ -133,13 +133,15 @@ const menuItems = computed(() => {
     path: '/' + child.path,
     title: child.meta?.title || child.name,
     icon: child.meta?.icon || 'Document',
-    adminOnly: child.meta?.adminOnly || false
+    adminOnly: child.meta?.adminOnly || false,
+    userOnly: child.meta?.userOnly || false
   })) || []
 })
 
 const visibleMenuItems = computed(() => {
   return menuItems.value.filter(item => {
     if (item.adminOnly) return userStore.isAdmin
+    if (item.userOnly) return !userStore.isAdmin
     return true
   })
 })
@@ -168,7 +170,7 @@ const handleCommand = async (command) => {
   } else if (command === 'password') {
     passwordDialogVisible.value = true
   } else if (command === 'profile') {
-    ElMessage.info('个人中心功能开发中')
+    router.push('/profile')
   }
 }
 

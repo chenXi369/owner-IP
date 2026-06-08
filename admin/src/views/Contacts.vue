@@ -4,7 +4,17 @@
       <template #header>
         <div class="card-header">
           <span>联系方式</span>
-          <el-button type="primary" @click="handleAdd">新增联系方式</el-button>
+          <div class="header-actions">
+            <el-select v-model="selectedResumeId" placeholder="选择简历" @change="loadContacts">
+              <el-option
+                v-for="resume in resumes"
+                :key="resume.id"
+                :label="resume.name"
+                :value="resume.id"
+              />
+            </el-select>
+            <el-button type="primary" @click="handleAdd">新增联系方式</el-button>
+          </div>
         </div>
       </template>
       
@@ -50,8 +60,8 @@
         <el-form-item label="排序">
           <el-input-number v-model="form.order" :min="0" />
         </el-form-item>
-        <el-form-item label="简历ID" prop="resume_id">
-          <el-input-number v-model="form.resume_id" :min="1" />
+        <el-form-item prop="resume_id" v-show="false">
+          <el-input v-model="form.resume_id" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -65,10 +75,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getAllContacts, createContact, updateContact, deleteContact } from '../api/contacts'
+import { getResumes } from '../api/resume'
+import { getContactsByResume, createContact, updateContact, deleteContact } from '../api/contacts'
 
 const loading = ref(false)
 const contacts = ref([])
+const resumes = ref([])
+const selectedResumeId = ref(null)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
@@ -78,22 +91,35 @@ const form = ref({
   label: '',
   value: '',
   order: 0,
-  resume_id: 1
+  resume_id: null
 })
 
 const rules = {
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  value: [{ required: true, message: '请输入内容', trigger: 'blur' }],
-  resume_id: [{ required: true, message: '请输入简历ID', trigger: 'blur' }]
+  value: [{ required: true, message: '请输入内容', trigger: 'blur' }]
 }
 
-const loadData = async () => {
+const loadResumes = async () => {
+  try {
+    const data = await getResumes()
+    resumes.value = data || []
+    if (resumes.value.length > 0 && !selectedResumeId.value) {
+      selectedResumeId.value = resumes.value[0].id
+      await loadContacts()
+    }
+  } catch (error) {
+    console.error('加载简历失败:', error)
+  }
+}
+
+const loadContacts = async () => {
+  if (!selectedResumeId.value) return
   loading.value = true
   try {
-    const data = await getAllContacts()
+    const data = await getContactsByResume(selectedResumeId.value)
     contacts.value = data || []
   } catch (error) {
-    console.error('加载失败:', error)
+    console.error('加载联系方式失败:', error)
   } finally {
     loading.value = false
   }
@@ -107,7 +133,7 @@ const handleAdd = () => {
     label: '',
     value: '',
     order: 0,
-    resume_id: 1
+    resume_id: selectedResumeId.value
   }
   dialogVisible.value = true
 }
@@ -131,7 +157,7 @@ const handleSubmit = async () => {
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
-    loadData()
+    loadContacts()
   } catch (error) {
     console.error('操作失败:', error)
   }
@@ -149,7 +175,7 @@ const handleDelete = async (row) => {
 }
 
 onMounted(() => {
-  loadData()
+  loadResumes()
 })
 </script>
 
@@ -157,7 +183,6 @@ onMounted(() => {
 @use '../styles/variables.scss' as *;
 
 .contacts-page {
-  padding: 24px;
   min-height: 100vh;
   background: $bg-primary;
 
@@ -190,6 +215,41 @@ onMounted(() => {
 
     span {
       letter-spacing: 0.5px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .el-select {
+        width: 200px;
+
+        .el-input__wrapper {
+          background: $bg-primary;
+          border: 1px solid $border-color;
+          box-shadow: none;
+          border-radius: $border-radius-sm;
+
+          &.is-focus {
+            border-color: $primary;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+          }
+        }
+
+        .el-input__inner {
+          color: $text-primary;
+          background: transparent;
+
+          &::placeholder {
+            color: $text-muted;
+          }
+        }
+
+        .el-input__suffix-inner {
+          color: $text-muted;
+        }
+      }
     }
   }
 
