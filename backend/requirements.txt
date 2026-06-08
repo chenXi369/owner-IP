@@ -1,0 +1,5 @@
+# Flask 同步版本依赖 (纯 sqlite3，无 SQLAlchemy)
+flask==3.0.0
+flask-cors==4.0.0
+waitress==3.0.0
+python-dotenv==1.0.0

@@ -1,45 +1,58 @@
 <template>
   <div class="home-page">
-    <section id="hero" data-section class="hero-section section">
-      <div class="container">
-        <div class="hero-content">
-          <div class="hero-text">
-            <p class="hero-greeting fade-in stagger-1">你好，我是</p>
-            <h1 class="hero-name fade-in stagger-2">
-              <span class="text-gradient">前端小李</span>
-            </h1>
-            <h2 class="hero-title fade-in stagger-3">
-              <span>{{ displayText }}</span>
-              <span class="cursor">|</span>
-            </h2>
-            <p class="hero-description fade-in stagger-4">
-              专注于创建卓越用户体验的全栈开发工程师，<br>
-              热爱Three.js 3D可视化与创意交互设计
-            </p>
-            <div class="hero-cta fade-in stagger-5">
-              <a href="#projects" class="btn btn-primary">
-                <span>查看项目</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </a>
-              <a href="#contact" class="btn btn-outline">
-                <span>联系我</span>
-              </a>
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p>加载中...</p>
+    </div>
+    
+    <!-- 错误提示 -->
+    <div v-else-if="error" class="error-overlay">
+      <p>{{ error }}</p>
+      <button @click="fetchFullResume" class="btn btn-primary">重新加载</button>
+    </div>
+    
+    <!-- 主内容 -->
+    <template v-else>
+      <section id="hero" data-section class="hero-section section">
+        <div class="container">
+          <div class="hero-content">
+            <div class="hero-text">
+              <p class="hero-greeting fade-in stagger-1">{{ resume?.greeting || '你好，我是' }}</p>
+              <h1 class="hero-name fade-in stagger-2">
+                <span class="text-gradient">{{ resume?.name || '前端小李' }}</span>
+              </h1>
+              <h2 class="hero-title fade-in stagger-3">
+                <span>{{ displayText }}</span>
+                <span class="cursor">|</span>
+              </h2>
+              <p class="hero-description fade-in stagger-4">
+                {{ resume?.description || '专注于创建卓越用户体验的全栈开发工程师，热爱Three.js 3D可视化与创意交互设计' }}
+              </p>
+              <div class="hero-cta fade-in stagger-5">
+                <a href="#projects" class="btn btn-primary">
+                  <span>查看项目</span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </a>
+                <a href="#contact" class="btn btn-outline">
+                  <span>联系我</span>
+                </a>
+              </div>
+            </div>
+            <div class="hero-visual">
+              <ClientOnly>
+                <ParticleAvatar />
+              </ClientOnly>
             </div>
           </div>
-          <div class="hero-visual">
-            <ClientOnly>
-              <ParticleAvatar />
-            </ClientOnly>
+          <div class="scroll-indicator">
+            <span>向下滚动</span>
+            <div class="scroll-arrow"></div>
           </div>
         </div>
-        <div class="scroll-indicator">
-          <span>向下滚动</span>
-          <div class="scroll-arrow"></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
     <section id="about" data-section class="about-section section">
       <div class="container">
@@ -152,312 +165,285 @@
       </div>
     </section>
 
-    <section id="projects" data-section class="projects-section section">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-number">03.</span>
-          <h2 class="section-title">项目作品</h2>
-          <p class="section-subtitle">我参与的一些代表性项目</p>
-        </div>
-        
-        <div class="projects-grid">
-          <div 
-            v-for="project in projects" 
-            :key="project.title"
-            class="project-card"
-            :class="{ 'featured': project.featured }"
-          >
-            <div class="project-image">
-              <div class="image-placeholder">{{ project.title }}</div>
-              <div class="project-overlay">
-                <div class="project-links">
-                  <a v-if="project.github" :href="project.github" class="project-link" target="_blank">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                    </svg>
-                  </a>
-                  <a v-if="project.demo" :href="project.demo" class="project-link" target="_blank">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
-                    </svg>
-                  </a>
+      <section id="projects" data-section class="projects-section section">
+        <div class="container">
+          <div class="section-header">
+            <span class="section-number">03.</span>
+            <h2 class="section-title">项目作品</h2>
+            <p class="section-subtitle">我参与的一些代表性项目</p>
+          </div>
+          
+          <div class="projects-grid">
+            <div 
+              v-for="project in projects" 
+              :key="project.id"
+              class="project-card"
+              :class="{ 'featured': project.is_featured }"
+            >
+              <div class="project-image">
+                <div class="image-placeholder">{{ project.title }}</div>
+                <div class="project-overlay">
+                  <div class="project-links">
+                    <a v-if="project.github_url" :href="project.github_url" class="project-link" target="_blank">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                      </svg>
+                    </a>
+                    <a v-if="project.demo_url" :href="project.demo_url" class="project-link" target="_blank">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div class="project-content">
+                <span class="project-type">{{ project.type }}</span>
+                <h3 class="project-title">{{ project.title }}</h3>
+                <p class="project-description">{{ project.description }}</p>
+                <div class="project-tech">
+                  <span v-for="tech in project.tech_stack" :key="tech" class="tech-tag">{{ tech }}</span>
                 </div>
               </div>
             </div>
-            <div class="project-content">
-              <span class="project-type">{{ project.type }}</span>
-              <h3 class="project-title">{{ project.title }}</h3>
-              <p class="project-description">{{ project.description }}</p>
-              <div class="project-tech">
-                <span v-for="tech in project.tech" :key="tech" class="tech-tag">{{ tech }}</span>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section id="experience" data-section class="experience-section section">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-number">04.</span>
-          <h2 class="section-title">工作经历</h2>
-          <p class="section-subtitle">我的职业发展历程</p>
-        </div>
-        
-        <div class="timeline">
-          <div v-for="exp in experiences" :key="exp.company" class="timeline-item">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content glass-card">
-              <div class="timeline-header">
-                <h3 class="timeline-title">{{ exp.position }}</h3>
-                <span class="timeline-company">{{ exp.company }}</span>
-              </div>
-              <span class="timeline-date">{{ exp.period }}</span>
-              <ul class="timeline-details">
-                <li v-for="(detail, i) in exp.details" :key="i">{{ detail }}</li>
-              </ul>
-              <div class="timeline-tech">
-                <span v-for="tech in exp.tech" :key="tech" class="tech-tag">{{ tech }}</span>
-              </div>
-            </div>
+      <section id="experience" data-section class="experience-section section">
+        <div class="container">
+          <div class="section-header">
+            <span class="section-number">04.</span>
+            <h2 class="section-title">工作经历</h2>
+            <p class="section-subtitle">我的职业发展历程</p>
           </div>
-        </div>
-        
-        <div class="education-section">
-          <h3 class="subsection-title">教育背景</h3>
-          <div class="education-cards">
-            <div v-for="edu in education" :key="edu.school" class="education-card glass-card">
-              <div class="edu-icon">🎓</div>
-              <div class="edu-content">
-                <h4 class="edu-school">{{ edu.school }}</h4>
-                <p class="edu-degree">{{ edu.degree }}</p>
-                <span class="edu-period">{{ edu.period }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="contact" data-section class="contact-section section">
-      <div class="container">
-        <div class="section-header centered">
-          <span class="section-number">05.</span>
-          <h2 class="section-title">联系我</h2>
-          <p class="section-subtitle">期待与您交流合作</p>
-        </div>
-        
-        <div class="contact-content">
-          <div class="contact-info">
-            <div class="contact-item">
-              <div class="contact-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
-              </div>
-              <div class="contact-text">
-                <span class="contact-label">邮箱</span>
-                <a href="mailto:example@email.com">example@email.com</a>
-              </div>
-            </div>
-            
-            <div class="contact-item">
-              <div class="contact-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
-                </svg>
-              </div>
-              <div class="contact-text">
-                <span class="contact-label">电话</span>
-                <a href="tel:+8612345678900">+86 123 4567 8900</a>
-              </div>
-            </div>
-            
-            <div class="contact-item">
-              <div class="contact-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                  <circle cx="12" cy="10" r="3"/>
-                </svg>
-              </div>
-              <div class="contact-text">
-                <span class="contact-label">地址</span>
-                <span>中国 · 北京</span>
+          
+          <div class="timeline">
+            <div v-for="exp in experiences" :key="exp.id" class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content glass-card">
+                <div class="timeline-header">
+                  <h3 class="timeline-title">{{ exp.position }}</h3>
+                  <span class="timeline-company">{{ exp.company }}</span>
+                </div>
+                <span class="timeline-date">{{ exp.period }}</span>
+                <ul class="timeline-details">
+                  <li v-for="(detail, i) in exp.details" :key="i">{{ detail }}</li>
+                </ul>
+                <div class="timeline-tech">
+                  <span v-for="tech in exp.tech_stack" :key="tech" class="tech-tag">{{ tech }}</span>
+                </div>
               </div>
             </div>
           </div>
           
-          <div class="contact-form-wrapper">
-            <form class="contact-form glass-card" @submit.prevent="handleSubmit">
-              <div class="form-group">
-                <label for="name">姓名</label>
-                <input type="text" id="name" v-model="form.name" placeholder="请输入您的姓名" required>
+          <div class="education-section">
+            <h3 class="subsection-title">教育背景</h3>
+            <div class="education-cards">
+              <div v-for="edu in educations" :key="edu.id" class="education-card glass-card">
+                <div class="edu-icon">🎓</div>
+                <div class="edu-content">
+                  <h4 class="edu-school">{{ edu.school }}</h4>
+                  <p class="edu-degree">{{ edu.degree }}</p>
+                  <span class="edu-period">{{ edu.period }}</span>
+                </div>
               </div>
-              <div class="form-group">
-                <label for="email">邮箱</label>
-                <input type="email" id="email" v-model="form.email" placeholder="请输入您的邮箱" required>
-              </div>
-              <div class="form-group">
-                <label for="message">留言</label>
-                <textarea id="message" v-model="form.message" placeholder="请输入您的留言" rows="5" required></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary submit-btn">
-                <span>发送消息</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              </button>
-            </form>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <Footer />
+      <section id="contact" data-section class="contact-section section">
+        <div class="container">
+          <div class="section-header centered">
+            <span class="section-number">05.</span>
+            <h2 class="section-title">联系我</h2>
+            <p class="section-subtitle">期待与您交流合作</p>
+          </div>
+          
+          <div class="contact-content">
+            <div class="contact-info">
+              <div v-for="contact in contacts" :key="contact.id" class="contact-item">
+                <div class="contact-icon">
+                  <!-- Email图标 -->
+                  <svg v-if="contact.type === 'email'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <!-- Phone图标 -->
+                  <svg v-else-if="contact.type === 'phone'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+                  </svg>
+                  <!-- Address图标 -->
+                  <svg v-else-if="contact.type === 'address'" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <!-- 默认图标 -->
+                  <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4M12 8h.01"/>
+                  </svg>
+                </div>
+                <div class="contact-text">
+                  <span class="contact-label">{{ contact.label }}</span>
+                  <a v-if="contact.type === 'email'" :href="`mailto:${contact.value}`">{{ contact.value }}</a>
+                  <a v-else-if="contact.type === 'phone'" :href="`tel:${contact.value}`">{{ contact.value }}</a>
+                  <span v-else>{{ contact.value }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="contact-form-wrapper">
+              <form class="contact-form glass-card" @submit.prevent="handleSubmit">
+                <div class="form-group">
+                  <label for="name">姓名</label>
+                  <input type="text" id="name" v-model="form.name" placeholder="请输入您的姓名" required :disabled="formSubmitting">
+                </div>
+                <div class="form-group">
+                  <label for="email">邮箱</label>
+                  <input type="email" id="email" v-model="form.email" placeholder="请输入您的邮箱" required :disabled="formSubmitting">
+                </div>
+                <div class="form-group">
+                  <label for="message">留言</label>
+                  <textarea id="message" v-model="form.message" placeholder="请输入您的留言" rows="5" required :disabled="formSubmitting"></textarea>
+                </div>
+                
+                <!-- 表单消息提示 -->
+                <div v-if="formMessage.text" class="form-message" :class="formMessage.type">
+                  {{ formMessage.text }}
+                </div>
+                
+                <button type="submit" class="btn btn-primary submit-btn" :disabled="formSubmitting">
+                  <span>{{ formSubmitting ? '发送中...' : '发送消息' }}</span>
+                  <svg v-if="!formSubmitting" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Footer />
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import gsap from 'gsap'
 import { useTypewriter } from '~/composables/useAnimation'
+import { useFullResume } from '~/composables/useFullResume'
+import { useMessageApi } from '~/composables/useApi'
 
 const activeSkillIndex = ref(0)
 
-const { displayText, type } = useTypewriter('全栈开发工程师 & 3D可视化专家', 80)
+// 使用组合式函数获取简历数据
+const {
+  resume,
+  skills,
+  projects,
+  experiences,
+  educations,
+  contacts,
+  loading,
+  error,
+  fetchFullResume
+} = useFullResume()
 
-const skills = ref([
-  { name: 'Vue.js', level: 95, color: '#42b883' },
-  { name: 'React', level: 90, color: '#61dafb' },
-  { name: 'Three.js', level: 85, color: '#ff6b6b' },
-  { name: 'TypeScript', level: 88, color: '#3178c6' },
-  { name: 'Node.js', level: 82, color: '#68a063' },
-  { name: 'WebGL', level: 78, color: '#9b59b6' }
-])
+// 获取消息 API
+const { submitMessage } = useMessageApi()
 
-const skillCategories = ref([
-  {
-    name: '前端框架',
-    tags: ['Vue.js', 'React', 'Nuxt.js', 'Next.js', 'Angular']
-  },
-  {
-    name: '3D & 可视化',
-    tags: ['Three.js', 'WebGL', 'D3.js', 'ECharts', 'Canvas']
-  },
-  {
-    name: '后端技术',
-    tags: ['Node.js', 'Express', 'Nest.js', 'MongoDB', 'PostgreSQL']
-  },
-  {
-    name: '工具 & 其他',
-    tags: ['Git', 'Docker', 'Webpack', 'Vite', 'CI/CD']
+// 打字机效果
+const { displayText, type } = useTypewriter('', 80)
+
+// 计算标题文本
+const titleText = computed(() => {
+  return resume.value?.title || '全栈开发工程师 & 3D可视化专家'
+})
+
+// 技能分类(根据后端数据的 category 字段分组)
+const skillCategories = computed(() => {
+  if (!skills.value || skills.value.length === 0) {
+    // 默认分类
+    return [
+      { name: '前端框架', tags: ['Vue.js', 'React', 'Nuxt.js', 'Next.js', 'Angular'] },
+      { name: '3D & 可视化', tags: ['Three.js', 'WebGL', 'D3.js', 'ECharts', 'Canvas'] },
+      { name: '后端技术', tags: ['Node.js', 'Express', 'Nest.js', 'MongoDB', 'PostgreSQL'] },
+      { name: '工具 & 其他', tags: ['Git', 'Docker', 'Webpack', 'Vite', 'CI/CD'] }
+    ]
   }
-])
+  
+  // 根据 category 字段分组
+  const categoryMap = {}
+  skills.value.forEach(skill => {
+    const category = skill.category || '其他'
+    if (!categoryMap[category]) {
+      categoryMap[category] = []
+    }
+    categoryMap[category].push(skill.name)
+  })
+  
+  return Object.entries(categoryMap).map(([name, tags]) => ({
+    name,
+    tags
+  }))
+})
 
-const projects = ref([
-  {
-    title: '3D数据可视化平台',
-    type: '全栈项目',
-    description: '基于Three.js开发的企业级3D数据可视化平台，支持实时数据展示、交互式图表和自定义场景编辑。',
-    tech: ['Vue.js', 'Three.js', 'Node.js', 'MongoDB'],
-    featured: true,
-    github: '#',
-    demo: '#'
-  },
-  {
-    title: '电商管理系统',
-    type: '前端项目',
-    description: '功能完善的电商后台管理系统，包含商品管理、订单处理、数据分析等核心模块。',
-    tech: ['React', 'TypeScript', 'Ant Design', 'Redux'],
-    featured: true,
-    github: '#',
-    demo: '#'
-  },
-  {
-    title: '创意作品集网站',
-    type: '前端项目',
-    description: '个人作品集网站，使用Nuxt.js和Three.js打造沉浸式3D交互体验。',
-    tech: ['Nuxt.js', 'Three.js', 'GSAP', 'SCSS'],
-    featured: false,
-    github: '#',
-    demo: '#'
-  },
-  {
-    title: '实时协作工具',
-    type: '全栈项目',
-    description: '支持多人实时协作的在线白板工具，包含画笔、图形、文本等多种编辑功能。',
-    tech: ['Vue.js', 'Socket.io', 'Canvas', 'Node.js'],
-    featured: false,
-    github: '#',
-    demo: '#'
-  }
-])
-
-const experiences = ref([
-  {
-    position: '高级前端工程师',
-    company: '某科技公司',
-    period: '2022.03 - 至今',
-    details: [
-      '负责公司核心产品的前端架构设计与开发',
-      '主导3D可视化模块的技术选型与实现',
-      '优化前端性能，页面加载速度提升40%',
-      '带领5人团队完成多个重要项目交付'
-    ],
-    tech: ['Vue.js', 'Three.js', 'TypeScript', 'Node.js']
-  },
-  {
-    position: '前端开发工程师',
-    company: '某互联网公司',
-    period: '2020.06 - 2022.02',
-    details: [
-      '参与电商平台前端开发，负责商品展示和购物车模块',
-      '开发数据可视化大屏，实现实时数据展示',
-      '编写前端组件库，提升团队开发效率'
-    ],
-    tech: ['React', 'Redux', 'ECharts', 'Webpack']
-  },
-  {
-    position: '初级前端工程师',
-    company: '某创业公司',
-    period: '2019.07 - 2020.05',
-    details: [
-      '负责公司官网和后台管理系统的开发',
-      '学习并实践Vue.js框架',
-      '参与移动端H5页面开发'
-    ],
-    tech: ['Vue.js', 'JavaScript', 'CSS3', 'jQuery']
-  }
-])
-
-const education = ref([
-  {
-    school: '某知名大学',
-    degree: '计算机科学与技术 · 本科',
-    period: '2015.09 - 2019.06'
-  }
-])
-
+// 联系表单
 const form = ref({
   name: '',
   email: '',
   message: ''
 })
 
-const handleSubmit = () => {
-  console.log('Form submitted:', form.value)
-  alert('感谢您的留言！我会尽快回复您。')
-  form.value = { name: '', email: '', message: '' }
+const formSubmitting = ref(false)
+const formMessage = ref({ type: '', text: '' })
+
+// 提交表单
+const handleSubmit = async () => {
+  if (!form.value.name || !form.value.email || !form.value.message) {
+    formMessage.value = { type: 'error', text: '请填写所有必填项' }
+    return
+  }
+  
+  formSubmitting.value = true
+  formMessage.value = { type: '', text: '' }
+  
+  try {
+    const result = await submitMessage({
+      name: form.value.name,
+      email: form.value.email,
+      message: form.value.message
+    })
+    
+    if (result.success) {
+      formMessage.value = { type: 'success', text: '感谢您的留言!我会尽快回复您。' }
+      form.value = { name: '', email: '', message: '' }
+    } else {
+      formMessage.value = { type: 'error', text: result.error || '提交失败,请稍后重试' }
+    }
+  } catch (err) {
+    formMessage.value = { type: 'error', text: '提交失败,请稍后重试' }
+  } finally {
+    formSubmitting.value = false
+  }
 }
 
-onMounted(() => {
+// 页面加载时获取数据
+onMounted(async () => {
+  // 获取简历数据
+  await fetchFullResume()
+  
+  // 延迟启动打字机效果
   setTimeout(() => {
-    type()
+    type(titleText.value)
   }, 1000)
   
+  // 滚动动画观察器
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -475,6 +461,66 @@ onMounted(() => {
 <style lang="scss" scoped>
 .home-page {
   position: relative;
+}
+
+// 加载状态样式
+.loading-overlay,
+.error-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 9999;
+  color: $text-primary;
+  
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba($primary-color, 0.3);
+    border-top-color: $primary-color;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  button {
+    margin-top: 1rem;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// 表单消息样式
+.form-message {
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  
+  &.success {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #4caf50;
+  }
+  
+  &.error {
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    color: #f44336;
+  }
 }
 
 .section {
