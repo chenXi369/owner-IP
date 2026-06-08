@@ -7,7 +7,7 @@
           <div class="logo-icon">
             <el-icon size="24"><Document /></el-icon>
           </div>
-          <span v-show="!isCollapsed" class="logo-text">简历管理</span>
+          <span v-show="!isCollapsed" class="logo-text">星辰简历</span>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ import { Document, User, ArrowDown, Fold, Expand, HomeFilled, Bell, Lock, Switch
 import { useUserStore } from '../stores/user'
 import { logout as logoutApi } from '../api/auth'
 import { changePassword } from '../api/auth'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
@@ -164,9 +164,18 @@ onUnmounted(() => {
 
 const handleCommand = async (command) => {
   if (command === 'logout') {
-    try { await logoutApi() } catch {}
-    userStore.logout()
-    router.push('/login')
+    try {
+      await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      try { await logoutApi() } catch {}
+      userStore.logout()
+      router.push('/login')
+    } catch {
+      // 用户取消，不做任何操作
+    }
   } else if (command === 'password') {
     passwordDialogVisible.value = true
   } else if (command === 'profile') {
@@ -263,7 +272,9 @@ const handleChangePassword = async () => {
 }
 
 .logo {
+  width: 100%;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 12px;
   overflow: hidden;

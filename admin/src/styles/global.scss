@@ -277,6 +277,12 @@ body {
   }
 }
 
+// 弹窗蒙层高斯毛玻璃效果
+.el-overlay {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
 // 下拉菜单样式覆盖
 .el-dropdown__popper {
   background: $bg-secondary !important;

@@ -10,12 +10,275 @@ import sqlite3
 import json
 import os
 import uuid
+import re
+import hashlib
+import base64
+import requests
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
 # 数据库文件路径
 DB_PATH = os.path.join(os.path.dirname(__file__), 'resume.db')
+
+# 安全密钥（从环境变量读取，用于Token加密和数据签名）
+SECRET_KEY = os.environ.get('SECRET_KEY', 'resume-app-default-secret-key-2024').encode('utf-8')
+
+# 阿里云OSS配置（从环境变量读取）
+OSS_ACCESS_KEY_ID = os.environ.get('OSS_ACCESS_KEY_ID', '')
+OSS_ACCESS_KEY_SECRET = os.environ.get('OSS_ACCESS_KEY_SECRET', '')
+OSS_ENDPOINT = os.environ.get('OSS_ENDPOINT', 'ccya-image.oss-cn-hangzhou.aliyuncs.com')
+OSS_BUCKET_NAME = os.environ.get('OSS_BUCKET_NAME', '')
+OSS_BASE_URL = os.environ.get('OSS_BASE_URL', '')
+
+# 阿里云内容安全（绿网）配置
+GREEN_ACCESS_KEY_ID = os.environ.get('GREEN_ACCESS_KEY_ID', '')
+GREEN_ACCESS_KEY_SECRET = os.environ.get('GREEN_ACCESS_KEY_SECRET', '')
+GREEN_REGION = os.environ.get('GREEN_REGION', 'cn-shanghai')
+
+# 初始化OSS客户端（配置完整时）
+oss_bucket = None
+if OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET and OSS_BUCKET_NAME:
+    try:
+        import oss2
+        auth = oss2.Auth(OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)
+        oss_bucket = oss2.Bucket(auth, OSS_ENDPOINT, OSS_BUCKET_NAME)
+    except Exception as e:
+        print(f'OSS初始化失败: {e}')
+
+# ==================== 安全工具模块 ====================
+
+# Token加密（使用Fernet对称加密）
+_fernet = None
+def _get_fernet():
+    """获取或初始化Fernet加密器"""
+    global _fernet
+    if _fernet is None:
+        try:
+            from cryptography.fernet import Fernet
+            # 使用SHA256哈希生成32字节密钥，再转为URL-safe base64
+            key = base64.urlsafe_b64encode(hashlib.sha256(SECRET_KEY).digest())
+            _fernet = Fernet(key)
+        except ImportError:
+            print('警告: cryptography库未安装，Token加密已禁用')
+            _fernet = False
+    return _fernet
+
+def encrypt_token(token):
+    """加密Token"""
+    f = _get_fernet()
+    if not f:
+        return token
+    return f.encrypt(token.encode('utf-8')).decode('utf-8')
+
+def decrypt_token(token):
+    """解密Token"""
+    f = _get_fernet()
+    if not f:
+        return token
+    try:
+        return f.decrypt(token.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return None
+
+
+# 敏感词过滤
+SENSITIVE_WORDS = {
+    'porn', 'sex', 'xxx', 'adult', 'nude', 'naked', '赌博', '博彩', '色情', '淫秽',
+    '法轮功', '台独', '疆独', '藏独', '暴力', '恐怖', '毒品', '吸毒', '嫖娼',
+    '卖淫', '反动', '邪教', '自杀', '自残', 'kill', 'murder', 'rape', 'hack',
+    'crack', '盗取', '诈骗', '钓鱼', '木马', '病毒', '攻击', '入侵'
+}
+
+SENSITIVE_PATTERNS = [
+    re.compile(r'\b(?:https?://)?(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&/=]*)'),
+]
+
+def check_sensitive_text(text):
+    """检测文本中的敏感内容，返回(是否通过, 原因)"""
+    if not text or not isinstance(text, str):
+        return True, None
+
+    lower_text = text.lower()
+    for word in SENSITIVE_WORDS:
+        if word in lower_text:
+            return False, f'内容包含敏感词: {word}'
+
+    return True, None
+
+
+def mask_email(email):
+    """邮箱脱敏: example@email.com -> ex***@email.com"""
+    if not email or '@' not in email:
+        return email
+    local, domain = email.split('@', 1)
+    if len(local) <= 2:
+        return f'**@{domain}'
+    return f'{local[:2]}***@{domain}'
+
+
+def mask_phone(phone):
+    """手机号脱敏: 13812345678 -> 138****5678"""
+    if not phone or len(phone) < 7:
+        return phone
+    return phone[:3] + '****' + phone[-4:]
+
+
+def sanitize_user_data(user_dict):
+    """对用户数据进行脱敏处理"""
+    if not user_dict:
+        return user_dict
+    result = dict(user_dict)
+    if 'email' in result:
+        result['email'] = mask_email(result['email'])
+    if 'phone' in result:
+        result['phone'] = mask_phone(result['phone'])
+    return result
+
+
+# 图片内容安全检测
+def check_image_safety(file_stream):
+    """检测图片内容安全性，返回(是否通过, 原因)"""
+    # 1. 基础文件头校验
+    header = file_stream.read(16)
+    file_stream.seek(0)
+
+    image_signatures = {
+        b'\x89PNG': 'png',
+        b'\xff\xd8\xff': 'jpeg',
+        b'GIF87a': 'gif',
+        b'GIF89a': 'gif',
+        b'RIFF': 'webp',
+        b'\x00\x00\x01\x00': 'ico',
+        b'<svg': 'svg',
+    }
+    is_valid_image = False
+    for sig, fmt in image_signatures.items():
+        if header.startswith(sig):
+            is_valid_image = True
+            break
+
+    if not is_valid_image:
+        # 尝试检测SVG文本格式
+        try:
+            text_header = header.decode('utf-8', errors='ignore').strip().lower()
+            if text_header.startswith('<svg') or text_header.startswith('<?xml'):
+                is_valid_image = True
+        except Exception:
+            pass
+
+    if not is_valid_image:
+        return False, '文件格式异常，可能不是有效的图片文件'
+
+    # 2. 图片尺寸检查（防止图片炸弹攻击）
+    try:
+        from PIL import Image
+        img = Image.open(file_stream)
+        width, height = img.size
+        file_stream.seek(0)
+        # 限制最大尺寸 8192x8192
+        if width > 8192 or height > 8192:
+            return False, f'图片尺寸过大: {width}x{height}'
+        # 限制最小尺寸 16x16（防止1x1像素追踪图）
+        if width < 16 or height < 16:
+            return False, f'图片尺寸过小: {width}x{height}'
+    except ImportError:
+        pass
+    except Exception as e:
+        return False, f'图片解析失败: {str(e)}'
+
+    # 3. 阿里云绿网内容安全检测（配置完整时）
+    if GREEN_ACCESS_KEY_ID and GREEN_ACCESS_KEY_SECRET:
+        try:
+            result = _call_green_image_scan(file_stream)
+            file_stream.seek(0)
+            if not result.get('pass', True):
+                return False, result.get('reason', '图片内容检测未通过')
+        except Exception as e:
+            print(f'绿网检测调用失败: {e}')
+
+    return True, None
+
+
+def _call_green_image_scan(file_stream):
+    """调用阿里云绿网进行图片扫描（预留实现）"""
+    # 绿网API需要复杂的签名计算，此处预留框架
+    # 实际生产环境应使用阿里云官方SDK: aliyun-python-sdk-green
+    return {'pass': True}
+
+
+# 内存中的Token存储（加密存储）
+token_store = {}
+
+
+def store_token(raw_token, user_id):
+    """安全存储Token"""
+    encrypted = encrypt_token(raw_token)
+    token_store[encrypted] = {
+        'user_id': user_id,
+        'created_at': datetime.utcnow().isoformat()
+    }
+
+
+def get_token_user_id(raw_token):
+    """通过原始Token获取用户ID"""
+    encrypted = encrypt_token(raw_token)
+    record = token_store.get(encrypted)
+    if not record:
+        return None
+    # 检查Token是否过期（7天）
+    try:
+        created = datetime.fromisoformat(record['created_at'])
+        if datetime.utcnow() - created > timedelta(days=7):
+            token_store.pop(encrypted, None)
+            return None
+    except Exception:
+        pass
+    return record.get('user_id')
+
+
+def remove_token(raw_token):
+    """移除Token"""
+    encrypted = encrypt_token(raw_token)
+    token_store.pop(encrypted, None)
+
+
+def get_setting(key, default=None):
+    """从数据库读取配置，不存在则返回默认值"""
+    try:
+        row = query_db('SELECT s_value FROM system_settings WHERE s_key = ?', [key], one=True)
+        if row and row['s_value'] is not None:
+            return row['s_value']
+    except Exception:
+        pass
+    return default
+
+
+def refresh_settings_from_db():
+    """从数据库刷新全局配置（启动时和配置更新后调用）"""
+    global SECRET_KEY, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET, OSS_ENDPOINT, OSS_BUCKET_NAME, OSS_BASE_URL
+    global GREEN_ACCESS_KEY_ID, GREEN_ACCESS_KEY_SECRET, GREEN_REGION, oss_bucket
+
+    SECRET_KEY = (get_setting('SECRET_KEY') or os.environ.get('SECRET_KEY', 'resume-app-default-secret-key-2024')).encode('utf-8')
+    OSS_ACCESS_KEY_ID = get_setting('OSS_ACCESS_KEY_ID') or os.environ.get('OSS_ACCESS_KEY_ID', '')
+    OSS_ACCESS_KEY_SECRET = get_setting('OSS_ACCESS_KEY_SECRET') or os.environ.get('OSS_ACCESS_KEY_SECRET', '')
+    OSS_ENDPOINT = get_setting('OSS_ENDPOINT') or os.environ.get('OSS_ENDPOINT', 'oss-cn-hangzhou.aliyuncs.com')
+    OSS_BUCKET_NAME = get_setting('OSS_BUCKET_NAME') or os.environ.get('OSS_BUCKET_NAME', '')
+    OSS_BASE_URL = get_setting('OSS_BASE_URL') or os.environ.get('OSS_BASE_URL', '')
+    GREEN_ACCESS_KEY_ID = get_setting('GREEN_ACCESS_KEY_ID') or os.environ.get('GREEN_ACCESS_KEY_ID', '')
+    GREEN_ACCESS_KEY_SECRET = get_setting('GREEN_ACCESS_KEY_SECRET') or os.environ.get('GREEN_ACCESS_KEY_SECRET', '')
+    GREEN_REGION = get_setting('GREEN_REGION') or os.environ.get('GREEN_REGION', 'cn-shanghai')
+
+    # 重新初始化OSS客户端
+    oss_bucket = None
+    if OSS_ACCESS_KEY_ID and OSS_ACCESS_KEY_SECRET and OSS_BUCKET_NAME:
+        try:
+            import oss2
+            auth = oss2.Auth(OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)
+            oss_bucket = oss2.Bucket(auth, OSS_ENDPOINT, OSS_BUCKET_NAME)
+        except Exception as e:
+            print(f'OSS重新初始化失败: {e}')
+
 
 CORS(app, resources={
     r"/api/*": {
@@ -57,12 +320,26 @@ def migrate_db():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
+
+    # 创建 system_settings 表（如果不存在）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            s_key VARCHAR(100) NOT NULL UNIQUE,
+            s_value TEXT,
+            description VARCHAR(500),
+            is_secret BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     db.commit()
     db.close()
 
 
-# 启动时执行迁移
+# 启动时执行迁移并加载配置
 migrate_db()
+refresh_settings_from_db()
 
 
 def get_db():
@@ -151,6 +428,19 @@ def create_resume():
     if not data.get('slug'):
         return jsonify({'error': '简历ID为必填项'}), 400
 
+    # 敏感词检测
+    text_fields = {
+        'name': data.get('name', ''),
+        'title': data.get('title', ''),
+        'slug': data.get('slug', ''),
+        'greeting': data.get('greeting', ''),
+        'description': data.get('description', '')
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+
     slug = data.get('slug')
     # 检查 slug 唯一性
     existing = query_db('SELECT id FROM resumes WHERE slug = ?', [slug], one=True)
@@ -178,6 +468,14 @@ def update_resume(resume_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
+
+    # 敏感词检测
+    text_fields = ['name', 'title', 'slug', 'greeting', 'description']
+    for field in text_fields:
+        if field in data and data[field]:
+            passed, reason = check_sensitive_text(data[field])
+            if not passed:
+                return jsonify({'error': f'{field}包含敏感内容: {reason}'}), 400
 
     # 检查 slug 唯一性
     if 'slug' in data and data['slug']:
@@ -361,6 +659,16 @@ def create_skill():
     if not data or not data.get('name') or not data.get('resume_id'):
         return jsonify({'error': '技能名称和简历ID为必填项'}), 400
     
+    # 敏感词检测
+    text_fields = {
+        'name': data.get('name', ''),
+        'category': data.get('category', '')
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+    
     skill_id = execute_db(
         '''INSERT INTO skills (resume_id, name, level, color, category, order_num)
            VALUES (?, ?, ?, ?, ?, ?)''',
@@ -376,6 +684,13 @@ def update_skill(skill_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
+    
+    # 敏感词检测
+    for field in ['name', 'category']:
+        if field in data and data[field]:
+            passed, reason = check_sensitive_text(data[field])
+            if not passed:
+                return jsonify({'error': f'{field}包含敏感内容: {reason}'}), 400
     
     fields = []
     values = []
@@ -439,6 +754,17 @@ def create_project():
     if not data or not data.get('title') or not data.get('resume_id'):
         return jsonify({'error': '项目名称和简历ID为必填项'}), 400
     
+    # 敏感词检测
+    text_fields = {
+        'title': data.get('title', ''),
+        'description': data.get('description', ''),
+        'role': data.get('role', '')
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+    
     project_id = execute_db(
         '''INSERT INTO projects (resume_id, title, type, description, tech_stack, github_url, demo_url, is_featured, order_num)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
@@ -456,6 +782,13 @@ def update_project(project_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
+    
+    # 敏感词检测
+    for field in ['title', 'description', 'role']:
+        if field in data and data[field]:
+            passed, reason = check_sensitive_text(data[field])
+            if not passed:
+                return jsonify({'error': f'{field}包含敏感内容: {reason}'}), 400
     
     fields = []
     values = []
@@ -521,6 +854,28 @@ def create_experience():
     if not data or not data.get('position') or not data.get('company') or not data.get('resume_id'):
         return jsonify({'error': '职位、公司和简历ID为必填项'}), 400
     
+    # 敏感词检测
+    text_fields = {
+        'company': data.get('company', ''),
+        'role': data.get('role', ''),
+        'description': data.get('description', '')
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+    
+    details = data.get('details', [])
+    if isinstance(details, list):
+        for item in details:
+            passed, reason = check_sensitive_text(item)
+            if not passed:
+                return jsonify({'error': f'details包含敏感内容: {reason}'}), 400
+    else:
+        passed, reason = check_sensitive_text(details)
+        if not passed:
+            return jsonify({'error': f'details包含敏感内容: {reason}'}), 400
+    
     exp_id = execute_db(
         '''INSERT INTO experiences (resume_id, position, company, period, details, tech_stack, order_num)
            VALUES (?, ?, ?, ?, ?, ?, ?)''',
@@ -537,6 +892,25 @@ def update_experience(exp_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
+    
+    # 敏感词检测
+    for field in ['company', 'role', 'description']:
+        if field in data and data[field]:
+            passed, reason = check_sensitive_text(data[field])
+            if not passed:
+                return jsonify({'error': f'{field}包含敏感内容: {reason}'}), 400
+    
+    if 'details' in data:
+        details = data['details']
+        if isinstance(details, list):
+            for item in details:
+                passed, reason = check_sensitive_text(item)
+                if not passed:
+                    return jsonify({'error': f'details包含敏感内容: {reason}'}), 400
+        else:
+            passed, reason = check_sensitive_text(details)
+            if not passed:
+                return jsonify({'error': f'details包含敏感内容: {reason}'}), 400
     
     fields = []
     values = []
@@ -602,6 +976,17 @@ def create_education():
     if not data or not data.get('school') or not data.get('degree') or not data.get('resume_id'):
         return jsonify({'error': '学校、学历和简历ID为必填项'}), 400
     
+    # 敏感词检测
+    text_fields = {
+        'school': data.get('school', ''),
+        'degree': data.get('degree', ''),
+        'description': data.get('description', '')
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+    
     edu_id = execute_db(
         '''INSERT INTO educations (resume_id, school, degree, period, description, order_num)
            VALUES (?, ?, ?, ?, ?, ?)''',
@@ -617,6 +1002,13 @@ def update_education(edu_id):
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
+    
+    # 敏感词检测
+    for field in ['school', 'degree', 'description']:
+        if field in data and data[field]:
+            passed, reason = check_sensitive_text(data[field])
+            if not passed:
+                return jsonify({'error': f'{field}包含敏感内容: {reason}'}), 400
     
     fields = []
     values = []
@@ -757,6 +1149,17 @@ def create_message():
     if not data or not all(k in data for k in ('name', 'email', 'message')):
         return jsonify({'error': '请提供完整的联系信息'}), 400
     
+    # 敏感词检测
+    text_fields = {
+        'name': data.get('name', ''),
+        'email': data.get('email', ''),
+        'content': data.get('content', data.get('message', ''))
+    }
+    for field_name, field_value in text_fields.items():
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
+    
     message_id = execute_db(
         'INSERT INTO contact_messages (name, email, message) VALUES (?, ?, ?)',
         [data['name'], data['email'], data['message']]
@@ -796,9 +1199,6 @@ def mark_message_read(msg_id):
 
 # ==================== 用户认证 & 用户管理 ====================
 
-# 内存中的 token 存储（生产环境应使用 Redis）
-token_store = {}
-
 
 def get_current_user():
     """获取当前登录用户"""
@@ -806,7 +1206,7 @@ def get_current_user():
     if not auth_header.startswith('Bearer '):
         return None
     token = auth_header[7:]
-    user_id = token_store.get(token)
+    user_id = get_token_user_id(token)
     if not user_id:
         return None
     return query_db('SELECT * FROM users WHERE id = ?', [user_id], one=True)
@@ -855,6 +1255,12 @@ def register():
     import re
     if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
         return jsonify({'error': '邮箱格式不正确'}), 400
+
+    # 敏感词检测
+    for field_name, field_value in [('username', username), ('nickname', nickname), ('email', email)]:
+        passed, reason = check_sensitive_text(field_value)
+        if not passed:
+            return jsonify({'error': f'{field_name}包含敏感内容: {reason}'}), 400
 
     # 检查用户名是否已存在
     existing = query_db('SELECT id FROM users WHERE username = ?', [username], one=True)
@@ -913,14 +1319,14 @@ def login():
     if not user['is_active']:
         return jsonify({'error': '账号已被禁用'}), 403
 
-    # 生成 token
+    # 生成 token 并安全存储
     token = str(uuid.uuid4())
-    token_store[token] = user['id']
+    store_token(token, user['id'])
 
     return jsonify({
         'message': '登录成功',
         'token': token,
-        'user': {
+        'user': sanitize_user_data({
             'id': user['id'],
             'username': user['username'],
             'email': user['email'],
@@ -928,7 +1334,7 @@ def login():
             'phone': user['phone'],
             'role': user['role'],
             'avatar': user['avatar']
-        }
+        })
     })
 
 
@@ -938,7 +1344,7 @@ def logout():
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
         token = auth_header[7:]
-        token_store.pop(token, None)
+        remove_token(token)
     return jsonify({'message': '登出成功'})
 
 
@@ -949,7 +1355,7 @@ def get_current_user_info():
     if not user:
         return jsonify({'error': '未登录'}), 401
 
-    return jsonify({
+    return jsonify(sanitize_user_data({
         'id': user['id'],
         'username': user['username'],
         'email': user['email'],
@@ -957,7 +1363,7 @@ def get_current_user_info():
         'phone': user['phone'],
         'role': user['role'],
         'avatar': user['avatar']
-    })
+    }))
 
 
 @app.route('/api/auth/password', methods=['PUT'])
@@ -1020,6 +1426,12 @@ def update_profile():
     if not data:
         return jsonify({'error': '请提供更新数据'}), 400
     
+    # 敏感词检测
+    if 'about_text' in data and data['about_text']:
+        passed, reason = check_sensitive_text(data['about_text'])
+        if not passed:
+            return jsonify({'error': f'about_text包含敏感内容: {reason}'}), 400
+    
     # 检查是否已存在记录
     existing = query_db('SELECT id FROM user_profiles WHERE user_id = ?', [user['id']], one=True)
     
@@ -1078,7 +1490,7 @@ def get_users():
     if result:
         return result
 
-    users = [row_to_dict(r) for r in query_db(
+    users = [sanitize_user_data(row_to_dict(r)) for r in query_db(
         'SELECT id, username, email, phone, nickname, avatar, role, is_active, created_at FROM users ORDER BY id DESC')]
     return jsonify(users)
 
@@ -1132,6 +1544,150 @@ def delete_user(user_id):
     return jsonify({'message': '删除成功'})
 
 
+# ==================== 系统配置管理（管理员） ====================
+
+# 预设配置项定义（用于前端展示和初始化）
+SETTING_DEFINITIONS = [
+    {'key': 'SECRET_KEY', 'label': '安全密钥', 'description': '用于Token加密和数据签名的密钥，建议设置为32位以上随机字符串', 'is_secret': True},
+    {'key': 'OSS_ACCESS_KEY_ID', 'label': 'OSS AccessKey ID', 'description': '阿里云OSS访问密钥ID', 'is_secret': True},
+    {'key': 'OSS_ACCESS_KEY_SECRET', 'label': 'OSS AccessKey Secret', 'description': '阿里云OSS访问密钥Secret', 'is_secret': True},
+    {'key': 'OSS_ENDPOINT', 'label': 'OSS Endpoint', 'description': '阿里云OSS服务端点，如: oss-cn-hangzhou.aliyuncs.com', 'is_secret': False},
+    {'key': 'OSS_BUCKET_NAME', 'label': 'OSS Bucket名称', 'description': '阿里云OSS存储空间名称', 'is_secret': False},
+    {'key': 'OSS_BASE_URL', 'label': 'OSS自定义域名', 'description': 'OSS自定义CDN域名（可选）', 'is_secret': False},
+    {'key': 'GREEN_ACCESS_KEY_ID', 'label': '绿网 AccessKey ID', 'description': '阿里云内容安全（绿网）访问密钥ID', 'is_secret': True},
+    {'key': 'GREEN_ACCESS_KEY_SECRET', 'label': '绿网 AccessKey Secret', 'description': '阿里云内容安全（绿网）访问密钥Secret', 'is_secret': True},
+    {'key': 'GREEN_REGION', 'label': '绿网服务区域', 'description': '绿网服务区域，如: cn-shanghai', 'is_secret': False},
+]
+
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """获取系统配置列表（管理员）"""
+    result = require_admin()
+    if result:
+        return result
+
+    # 查询数据库中已保存的配置
+    db_settings = {row['s_key']: {'value': row['s_value'], 'updated_at': row['updated_at']}
+                   for row in query_db('SELECT s_key, s_value, updated_at FROM system_settings')}
+
+    settings = []
+    for defn in SETTING_DEFINITIONS:
+        key = defn['key']
+        db_val = db_settings.get(key, {})
+        value = db_val.get('value', '')
+        settings.append({
+            'key': key,
+            'label': defn['label'],
+            'description': defn['description'],
+            'is_secret': defn['is_secret'],
+            'value': value,
+            'has_value': bool(value),
+            'source': 'database' if key in db_settings else 'environment',
+            'updated_at': db_val.get('updated_at')
+        })
+    return jsonify(settings)
+
+
+@app.route('/api/settings', methods=['PUT'])
+def update_settings():
+    """更新系统配置（管理员）"""
+    result = require_admin()
+    if result:
+        return result
+
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return jsonify({'error': '请提供配置数据'}), 400
+
+    allowed_keys = {d['key'] for d in SETTING_DEFINITIONS}
+    updated = []
+    for key, value in data.items():
+        if key not in allowed_keys:
+            continue
+        # 如果值是空字符串，则删除该配置（回退到环境变量）
+        if value == '':
+            execute_db('DELETE FROM system_settings WHERE s_key = ?', [key])
+            updated.append(key)
+            continue
+        # 获取定义
+        defn = next((d for d in SETTING_DEFINITIONS if d['key'] == key), None)
+        # 插入或更新
+        execute_db(
+            '''INSERT INTO system_settings (s_key, s_value, description, is_secret, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(s_key) DO UPDATE SET
+               s_value = excluded.s_value, updated_at = excluded.updated_at''',
+            [key, value, defn['description'] if defn else '', 1 if (defn and defn['is_secret']) else 0,
+             datetime.utcnow().isoformat()]
+        )
+        updated.append(key)
+
+    # 刷新全局配置
+    refresh_settings_from_db()
+    return jsonify({'message': '配置已更新', 'updated': updated})
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """上传文件到阿里云OSS"""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': '未登录'}), 401
+
+    if 'file' not in request.files:
+        return jsonify({'error': '没有文件'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '文件名为空'}), 400
+
+    # 限制文件类型
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in allowed_extensions:
+        return jsonify({'error': '仅支持图片文件'}), 400
+
+    # 限制文件大小 (5MB)
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > 5 * 1024 * 1024:
+        return jsonify({'error': '文件大小不能超过5MB'}), 400
+
+    # 图片内容安全检测
+    file.seek(0)
+    passed, reason = check_image_safety(file)
+    if not passed:
+        return jsonify({'error': reason}), 400
+    file.seek(0)
+
+    # 生成唯一文件名
+    filename = f"{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
+
+    try:
+        if oss_bucket:
+            # 上传到阿里云OSS
+            oss_bucket.put_object(filename, file.read())
+            if OSS_BASE_URL:
+                url = f"{OSS_BASE_URL}/{filename}"
+            else:
+                url = f"https://{OSS_BUCKET_NAME}.{OSS_ENDPOINT}/{filename}"
+        else:
+            # OSS未配置，使用本地存储（开发 fallback）
+            upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+            date_dir = os.path.join(upload_dir, datetime.now().strftime('%Y%m%d'))
+            os.makedirs(date_dir, exist_ok=True)
+            local_path = os.path.join(date_dir, f"{uuid.uuid4().hex}.{ext}")
+            file.save(local_path)
+            url = f"/uploads/{datetime.now().strftime('%Y%m%d')}/{os.path.basename(local_path)}"
+
+        return jsonify({'url': url, 'filename': filename})
+    except Exception as e:
+        return jsonify({'error': f'上传失败: {str(e)}'}), 500
+
+
 @app.route('/api/docs')
 def api_docs():
     """API 文档"""
@@ -1164,7 +1720,8 @@ def api_docs():
             {'method': 'PUT', 'path': '/api/experiences/<id>', 'description': '更新工作经历'},
             {'method': 'DELETE', 'path': '/api/experiences/<id>', 'description': '删除工作经历'},
             {'method': 'POST', 'path': '/api/messages', 'description': '提交联系消息'},
-            {'method': 'GET', 'path': '/api/messages', 'description': '获取消息列表'}
+            {'method': 'GET', 'path': '/api/messages', 'description': '获取消息列表'},
+            {'method': 'POST', 'path': '/api/upload', 'description': '上传图片到OSS'}
         ]
     })
 

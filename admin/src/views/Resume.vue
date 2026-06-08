@@ -50,8 +50,16 @@
         <el-form-item label="个人简介">
           <el-input v-model="form.description" type="textarea" :rows="4" />
         </el-form-item>
-        <el-form-item label="头像URL">
-          <el-input v-model="form.avatar_url" />
+        <el-form-item label="头像">
+          <el-upload
+            class="avatar-uploader"
+            :show-file-list="false"
+            :http-request="handleAvatarUpload"
+            accept="image/*"
+          >
+            <img v-if="form.avatar_url" :src="form.avatar_url" class="avatar-preview" />
+            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+          </el-upload>
         </el-form-item>
         <el-form-item label="激活状态">
           <el-switch v-model="form.is_active" />
@@ -68,7 +76,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { getResumes, createResume, updateResume, deleteResume } from '../api/resume'
+import { uploadImage } from '../api/upload'
 
 const loading = ref(false)
 const resumes = ref([])
@@ -142,6 +152,16 @@ const handlePreview = (row) => {
   const nuxtBaseUrl = import.meta.env.VITE_NUXT_BASE_URL || 'http://localhost:3000'
   const url = `${nuxtBaseUrl}/${row.user_id}/${row.slug}`
   window.open(url, '_blank')
+}
+
+const handleAvatarUpload = async (options) => {
+  try {
+    const res = await uploadImage(options.file)
+    form.value.avatar_url = res.url
+    ElMessage.success('上传成功')
+  } catch (error) {
+    console.error('上传失败:', error)
+  }
 }
 
 const handleSubmit = async () => {
@@ -369,6 +389,37 @@ onMounted(() => {
   :deep(.el-tag) {
     border-radius: $border-radius-sm;
     font-weight: 500;
+  }
+
+  .avatar-uploader {
+    :deep(.el-upload) {
+      width: 120px;
+      height: 120px;
+      border: 1px dashed $border-color;
+      border-radius: $border-radius-lg;
+      background: $bg-primary;
+      cursor: pointer;
+      transition: border-color $transition-fast;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      &:hover {
+        border-color: $primary;
+      }
+    }
+
+    .avatar-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .avatar-uploader-icon {
+      font-size: 28px;
+      color: $text-muted;
+    }
   }
 }
 </style>

@@ -85,6 +85,12 @@ const routes = [
         name: 'Profile',
         component: () => import('../views/Profile.vue'),
         meta: { title: '个人中心', icon: 'User', userOnly: true }
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/Settings.vue'),
+        meta: { title: '系统配置', icon: 'Setting', adminOnly: true }
       }
     ]
   }

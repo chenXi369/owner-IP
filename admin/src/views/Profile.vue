@@ -18,7 +18,18 @@
         </el-form-item>
 
         <el-form-item label="个人照片">
-          <el-input v-model="form.photo_url" placeholder="请输入照片URL" />
+          <el-upload
+            class="photo-uploader"
+            :show-file-list="false"
+            :http-request="handlePhotoUpload"
+            accept="image/*"
+          >
+            <img v-if="form.photo_url" :src="form.photo_url" class="photo-preview" />
+            <div v-else class="photo-upload-placeholder">
+              <el-icon :size="28"><Plus /></el-icon>
+              <span>点击上传</span>
+            </div>
+          </el-upload>
         </el-form-item>
 
         <el-divider content-position="left">数据统计</el-divider>
@@ -62,7 +73,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { getProfile, updateProfile } from '../api/profile'
+import { uploadImage } from '../api/upload'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -99,6 +112,16 @@ const loadProfile = async () => {
     console.error('加载个人信息失败:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const handlePhotoUpload = async (options) => {
+  try {
+    const res = await uploadImage(options.file)
+    form.value.photo_url = res.url
+    ElMessage.success('上传成功')
+  } catch (error) {
+    console.error('上传失败:', error)
   }
 }
 
@@ -206,6 +229,44 @@ onMounted(() => {
     background: $bg-secondary;
     border-color: $border-color;
     color: $text-secondary;
+  }
+
+  .photo-uploader {
+    :deep(.el-upload) {
+      width: 200px;
+      height: 260px;
+      border: 1px dashed $border-color;
+      border-radius: $border-radius-lg;
+      background: $bg-primary;
+      cursor: pointer;
+      transition: border-color $transition-fast;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      &:hover {
+        border-color: $primary;
+      }
+    }
+
+    .photo-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-upload-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: $text-muted;
+
+      span {
+        font-size: 13px;
+      }
+    }
   }
 }
 </style>
